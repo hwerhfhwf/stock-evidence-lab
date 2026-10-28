@@ -47,9 +47,9 @@ export default {
     const url = new URL(request.url);
     if (request.method !== 'GET') return response({ error: { code: 'method_not_allowed', message: 'Only GET is supported' } }, { status: 405 });
     if (url.pathname === '/') return response(page, { contentType: 'text/html; charset=utf-8', cache: 'private, max-age=60' });
-    if (url.pathname === '/styles.css') return response(styles, { contentType: 'text/css; charset=utf-8', cache: 'private, max-age=3600' });
-    if (url.pathname === '/app.js') return response(appScript, { contentType: 'text/javascript; charset=utf-8', cache: 'private, max-age=3600' });
-    if (url.pathname === '/health-model.js') return response(healthModelScript, { contentType: 'text/javascript; charset=utf-8', cache: 'private, max-age=3600' });
+    if (url.pathname === '/styles.css') return response(styles, { contentType: 'text/css; charset=utf-8' });
+    if (url.pathname === '/app.js') return response(appScript, { contentType: 'text/javascript; charset=utf-8' });
+    if (url.pathname === '/health-model.js') return response(healthModelScript, { contentType: 'text/javascript; charset=utf-8' });
     if (url.pathname === '/api/health') {
       return env.FUYAO_API_KEY
         ? response({ status: 'ok', provider: 'fuyao', secretConfigured: true })

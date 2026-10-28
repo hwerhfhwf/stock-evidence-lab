@@ -15,6 +15,12 @@ test('worker serves the health model as a same-origin module', async () => {
   assert.equal(response.status, 200);
   assert.match(response.headers.get('content-type'), /text\/javascript/);
   assert.match(await response.text(), /buildHealthReport/);
+  assert.equal(response.headers.get('cache-control'), 'no-store');
+});
+
+test('worker does not cache unhashed client scripts across UI revisions', async () => {
+  const response = await worker.fetch(new Request('https://example.test/app.js'), {}, {});
+  assert.equal(response.headers.get('cache-control'), 'no-store');
 });
 
 test('health endpoint reports missing runtime secret without exposing it', async () => {

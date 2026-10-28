@@ -21,12 +21,17 @@ test('main screen answers one real question through one causal chain', () => {
   assert.doesNotMatch(html, /EVIDENCE-FIRST|DIAGNOSTIC|Research Queue/);
 });
 
+test('browser entrypoint is versioned so old modules cannot mix with new markup', () => {
+  assert.match(html, /src="\/app\.js\?v=question-chain-2"/);
+});
+
 test('live UI calls same-origin APIs and renders partial failures without hidden fallback data', () => {
-  for (const token of ['/api/search', '/api/research', 'buildHealthReport', 'renderHealthReport', 'renderProfessionalEvidence', 'requestIds']) {
+  for (const token of ['/api/search', '/api/research', 'buildHealthReport', 'renderQuestionReport', 'renderProfessionalEvidence', 'requestIds']) {
     assert.match(app, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')), `missing ${token}`);
   }
   assert.doesNotMatch(app, /X-api-key|sk-fuyao/);
   assert.match(app, /result\.items\.length===1/);
   assert.match(app, /财务截至/);
+  assert.match(app, /当前不能可靠回答这个问题/);
   for (const id of ['calculate_operating_profit_yoy_growth_ratio', 'cash_ratio', 'inventory_turnover_ratio', 'cash_operating_index']) assert.match(app, new RegExp(id));
 });
