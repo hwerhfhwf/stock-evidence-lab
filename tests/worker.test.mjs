@@ -7,7 +7,7 @@ test('worker serves the one-minute company health UI with security headers', asy
   assert.equal(response.status, 200);
   assert.match(response.headers.get('content-type'), /text\/html/);
   assert.match(response.headers.get('content-security-policy'), /default-src 'self'/);
-  assert.match(await response.text(), /一分钟看懂一家公司/);
+  assert.match(await response.text(), /你想弄清什么/);
 });
 
 test('worker serves the health model as a same-origin module', async () => {

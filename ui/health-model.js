@@ -68,3 +68,29 @@ export function buildHealthReport(bundle, company) {
 
   return { company, summary, counts, steps, actions, financialPeriod };
 }
+
+export function buildQuestionReport(bundle, company, question) {
+  const values = indicators(bundle);
+  const revenue = metric(values, ['calculate_operating_income_yoy_growth_ratio', 'operating_income_yoy_growth_ratio']);
+  const profit = metric(values, ['calculate_parent_holder_net_profit_yoy_growth_ratio', 'net_profit_yoy_growth_ratio']);
+  const cash = metric(values, ['net_profit_cash_content']);
+  const debt = metric(values, ['assets_debt_ratio']);
+  const market = bundle?.modules?.market?.signals || {};
+  const growthKnown = revenue !== null && profit !== null;
+  const answer = !growthKnown
+    ? `${company.name} 的最新增长数据不完整，现在还不能判断增长是否稳定。`
+    : revenue >= 0 && profit >= 0
+      ? `${company.name} 仍在增长，但利润增速低于收入，增长的含金量需要继续看。`
+      : revenue * profit < 0
+        ? `${company.name} 的收入和利润方向不一致，增长已经出现分化。`
+        : `${company.name} 的收入和利润都在承压，目前看不到稳定增长。`;
+  const chain = [
+    { role:'phenomenon', state:growthKnown?(revenue>=0&&profit>=0?'support':'counter'):'unknown', title:'先看发生了什么', body:growthKnown?`收入同比 ${pct(revenue)}，归母净利润同比 ${pct(profit)}。`:'最新收入或利润增速没有完整返回。', evidence:'增长指标，财务截至最近报告期', detailTarget:'financial' },
+    { role:'reason', state:cash===null?'unknown':cash>=100?'support':'counter', title:'再看增长有没有变成现金', body:cash===null?'经营现金与利润的对应关系暂时未知。':cash>=100?`每 100 元利润对应约 ${cash.toFixed(0)} 元经营现金，利润有现金支撑。`:`每 100 元利润只对应约 ${cash.toFixed(0)} 元经营现金，利润回款需要核实。`, evidence:'经营现金流与净利润的同口径比较', detailTarget:'financial' },
+    { role:'counter', state:debt===null?'unknown':debt>60?'counter':'support', title:'有没有相反证据', body:debt===null?'负债数据没有完整返回。':debt>60?`每 100 元资产中约有 ${debt.toFixed(1)} 元负债。制造业经营性负债较多，不能直接判定风险。`:`每 100 元资产中约有 ${debt.toFixed(1)} 元负债，当前没有明显的高杠杆反证。`, evidence:'资产与负债，最近报告期', detailTarget:'financial' },
+    { role:'unknown', state:'unknown', title:'哪一环还不知道', body:'缺少同日同行比较和最新公告原文，暂时无法判断增长在行业里处于什么位置，也无法解释突发事件。', evidence:'同行与事件数据尚未接入', detailTarget:'lineage' },
+    { role:'impact', state:number(market.return60)===null?'unknown':number(market.return60)<0?'counter':'support', title:'市场怎样消化这些信息', body:number(market.return60)===null?'近期价格数据暂不可用。':`近 60 日价格变化 ${pct(market.return60)}，期间最大回撤 ${pct(market.maxDrawdown60)}。这是市场反应，不是未来预测。`, evidence:'前复权日线，确定性计算', detailTarget:'market' },
+    { role:'next', state:'unknown', title:'下一步该查什么', body:growthKnown?'先比较同行的收入和利润增速，再回到财报核实毛利率、应收账款和一次性损益。':'先补齐最新财务数据，再判断增长方向。', evidence:'待完成的研究步骤', detailTarget:'financial' },
+  ];
+  return { question, answer, chain, nextAction: growthKnown?'比较同行并查看原始财报':'补齐最新财务数据' };
+}
