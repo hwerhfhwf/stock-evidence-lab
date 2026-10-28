@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="color-scheme" content="dark">
-  <meta name="theme-color" content="#071421">
+  <meta name="theme-color" content="#06121e">
   <title>FinScope · A 股公司研究工作台</title>
   <link rel="stylesheet" href="/styles.css">
 </head>
@@ -12,7 +12,7 @@
   <a class="skip-link" href="#main-content">跳到研究内容</a>
   <div class="app-shell">
     <aside id="research-nav" class="sidebar" aria-label="研究目录">
-      <a class="brand" href="#business" aria-label="FinScope 首页"><span class="brand-mark">F</span><span><strong>FinScope</strong><small>公司研究工作台</small></span></a>
+      <a class="brand" href="#business" aria-label="FinScope 首页"><span class="brand-mark">F</span><span><strong>FinScope</strong><small>公司研究</small></span></a>
       <nav class="primary-nav">
         <a class="active" href="#business" data-nav="business"><span>01</span>公司与业务</a>
         <a href="#operating" data-nav="operating"><span>02</span>经营与盈利</a>
@@ -22,11 +22,10 @@
         <a href="#events" data-nav="events"><span>06</span>事件与风险</a>
       </nav>
       <div class="sidebar-company" aria-label="当前公司"><span id="side-company-name">比亚迪</span><strong id="side-company-code">002594.SZ</strong></div>
-      <div class="sidebar-foot"><span class="status-dot"></span>扶摇数据服务<br><small>iFinD 增强按环境启用</small></div>
+      <div class="sidebar-foot"><span class="status-dot"></span>扶摇数据<span>iFinD 增强按环境启用</span></div>
     </aside>
 
     <button id="nav-backdrop" class="nav-backdrop" aria-label="关闭研究目录" hidden></button>
-
     <div class="workspace">
       <header class="topbar">
         <button id="mobile-menu" class="icon-button mobile-menu" aria-label="打开研究目录" aria-expanded="false" aria-controls="research-nav">☰</button>
@@ -37,102 +36,70 @@
           <span class="search-hint">名称 / 代码</span>
           <div id="search-results" class="search-results" role="listbox" hidden></div>
         </form>
-        <div class="mode-switch" aria-label="展示深度">
-          <button id="mode-simple" data-mode="simple" aria-pressed="true">简明</button>
-          <button id="mode-professional" data-mode="professional" aria-pressed="false">专业</button>
-        </div>
+        <div class="mode-switch" aria-label="展示深度"><button id="mode-simple" data-mode="simple" aria-pressed="true">简明</button><button id="mode-professional" data-mode="professional" aria-pressed="false">专业</button></div>
         <button id="favorite-button" class="top-action" data-action="favorite" aria-pressed="false">＋ 关注</button>
       </header>
 
       <main id="main-content" tabindex="-1" aria-busy="true">
-        <div id="module-status" class="module-status" role="status" aria-live="polite">
-          <span class="pulse" aria-hidden="true"></span><strong>正在连接实时数据</strong><span>行情、财务与估值分别加载</span>
-        </div>
-
-        <header id="quote-strip" class="quote-strip">
+        <div id="module-status" class="module-status" role="status" aria-live="polite"><span class="pulse"></span><strong>正在连接实时数据</strong><span>行情、财务与估值分别加载</span></div>
+        <header id="quote-strip" class="context-bar company-context">
           <div class="company-lockup"><span class="company-mark" aria-hidden="true">BYD</span><div><h1 id="company-name">比亚迪</h1><p><span id="company-code">002594.SZ</span><span id="company-market">深交所 · A 股</span></p></div></div>
-          <dl class="quote-metrics">
-            <div class="price-cell"><dt>最新价</dt><dd id="quote-price">—</dd></div>
-            <div><dt>涨跌幅</dt><dd id="quote-change">—</dd></div>
-            <div><dt>成交额</dt><dd id="quote-turnover">—</dd></div>
-            <div><dt>数据时间</dt><dd id="data-time">—</dd></div>
-          </dl>
+          <dl class="quote-metrics"><div class="price-cell"><dt>最新价</dt><dd id="quote-price">—</dd></div><div><dt>涨跌幅</dt><dd id="quote-change">—</dd></div><div><dt>成交额</dt><dd id="quote-turnover">—</dd></div><div><dt>数据时间</dt><dd id="data-time">—</dd></div></dl>
           <span id="source-badge" class="source-badge">加载中</span>
         </header>
 
         <form id="research-task" class="research-task">
-          <span aria-hidden="true">✦</span><label class="sr-only" for="research-question">研究问题</label>
+          <span class="command-mark" aria-hidden="true">✦</span><label class="sr-only" for="research-question">研究问题</label>
           <input id="research-question" value="增长放缓是否伴随经营质量下降？" autocomplete="off">
-          <button id="run-diagnosis" type="submit">定位研究</button>
+          <span id="ai-connection-state" class="ai-connection-state">默认研究</span>
+          <button id="ai-settings" type="button" class="command-secondary" aria-expanded="false" aria-controls="ai-settings-panel">连接模型</button>
+          <button id="run-diagnosis" type="submit">研究</button>
         </form>
+        <div id="ai-settings-panel" class="ai-settings-panel" hidden><label>兼容接口<input id="ai-endpoint" type="url" placeholder="https://api.example.com/v1"></label><label>模型<input id="ai-model" placeholder="模型名称"></label><label>临时 API Key<input id="ai-key" type="password" autocomplete="off" placeholder="仅本次页面使用"></label><button id="ai-connect" type="button">使用此连接</button></div>
+        <nav id="dimension-rail" class="dimension-rail" aria-label="本次研究维度"><a data-dimension="operating_quality" href="#operating">经营与盈利</a><a data-dimension="financial_trend" href="#finance">财务与现金</a><a data-dimension="valuation" href="#valuation">估值与预期</a><a data-dimension="market_characteristics" href="#market">市场表现</a><a data-dimension="industry_position" href="#valuation">行业位置</a><a data-dimension="material_events" href="#events">事件与风险</a></nav>
         <section id="priority-result" class="priority-result" role="status" aria-live="polite" hidden></section>
 
-        <section id="business" class="overview-grid section-anchor" aria-labelledby="business-title">
-          <article id="business-hero" class="business-hero">
-            <div class="hero-copy">
-              <p class="eyebrow">COMPANY &amp; BUSINESS</p>
-              <h2 id="business-title">公司与业务</h2>
-              <p id="business-summary">以新能源汽车为核心，业务延伸至动力电池、储能、光伏与电子制造。</p>
-              <button type="button" data-action="sources">查看业务构成与披露 <span aria-hidden="true">→</span></button>
-            </div>
-            <dl class="hero-facts"><div><dt>研究口径</dt><dd id="business-scope">集团合并</dd></div><div><dt>主要业务</dt><dd id="business-lines">汽车 · 电子制造</dd></div><div><dt>上市市场</dt><dd id="business-listing">A 股 / H 股</dd></div></dl>
-            <svg class="hero-scene" viewBox="0 0 760 300" aria-hidden="true">
-              <defs><linearGradient id="building" x1="0" x2="1"><stop stop-color="#0d3550"/><stop offset="1" stop-color="#184d6c"/></linearGradient></defs>
-              <path d="M330 70 705 30v178H330Z" fill="url(#building)" opacity=".84"/><path d="M375 82v114m58-122v122m58-130v130m58-138v138m58-146v146" stroke="#7bcbe5" opacity=".13"/>
-              <path d="M0 246h760" stroke="#6fd6ef" opacity=".22"/><path d="M365 226c15-38 45-52 92-52h72c26 0 52 12 72 35l25 17h34c14 0 25 10 25 23H322c0-13 12-23 27-23Z" fill="#071622" stroke="#62bddb" stroke-width="2" opacity=".86"/><circle cx="414" cy="249" r="20" fill="#071421" stroke="#62bddb"/><circle cx="619" cy="249" r="20" fill="#071421" stroke="#62bddb"/>
-            </svg>
-          </article>
+        <div class="research-canvas">
+          <section id="business" class="canvas-section business-section section-anchor" aria-labelledby="business-title">
+            <article id="business-hero" class="business-hero">
+              <div class="hero-copy"><p class="eyebrow">COMPANY / BUSINESS</p><h2 id="business-title">公司与业务</h2><p id="business-summary">以新能源汽车为核心，业务延伸至动力电池、储能、光伏与电子制造。</p><button type="button" data-action="sources">业务构成与披露 <span aria-hidden="true">→</span></button></div>
+              <dl class="hero-facts"><div><dt>研究口径</dt><dd id="business-scope">集团合并</dd></div><div><dt>主要业务</dt><dd id="business-lines">汽车 · 电子制造</dd></div><div><dt>上市市场</dt><dd id="business-listing">A 股 / H 股</dd></div></dl>
+              <div class="hero-visual" aria-hidden="true"><span class="plant-label">BYD</span><svg viewBox="0 0 720 280"><path d="M292 64 688 24v190H292Z" fill="#12374f"/><path d="M340 74v130m66-136v136m66-144v144m66-150v150m66-158v158" stroke="#7ed3ef" opacity=".16"/><path d="M0 231h720" stroke="#6fd6ef" opacity=".28"/><path d="M333 218c17-41 50-56 102-56h75c29 0 57 13 79 38l27 18h37c16 0 28 11 28 25H286c0-14 13-25 30-25Z" fill="#071622" stroke="#62bddb" stroke-width="2"/><circle cx="387" cy="244" r="21" fill="#071421" stroke="#62bddb"/><circle cx="604" cy="244" r="21" fill="#071421" stroke="#62bddb"/></svg></div>
+            </article>
+            <article class="composition-panel"><header class="panel-heading"><div><p class="eyebrow">REVENUE MIX</p><h2>收入构成</h2></div><span id="composition-period">2025 年</span></header><div id="composition-chart" class="composition-chart" aria-live="polite"></div><div class="panel-source"><span id="composition-note">按集团分产品收入</span><button type="button" data-evidence="segments" aria-expanded="false">数据与出处</button></div></article>
+          </section>
 
-          <article class="composition-panel">
-            <header class="panel-heading"><div><p class="eyebrow">REVENUE MIX</p><h2>收入构成</h2></div><span id="composition-period">2025 年</span></header>
-            <div id="composition-chart" class="composition-chart" aria-live="polite"></div>
-            <div class="panel-source"><span id="composition-note">按集团分产品收入</span><button type="button" data-evidence="segments" aria-expanded="false">数据与出处</button></div>
-          </article>
-        </section>
+          <div class="layer-heading"><div><p class="eyebrow">FUNDAMENTALS</p><h2>企业基本面</h2></div><span>收入 → 利润 → 现金 → 资本结构</span></div>
 
-        <div class="layer-heading"><div><p class="eyebrow">FUNDAMENTALS</p><h2>企业基本面</h2></div><span>增长 → 盈利 → 现金</span></div>
+          <section id="operating" class="canvas-section operating-section section-anchor" aria-labelledby="operating-title">
+            <article class="primary-chart-panel"><header class="section-heading"><div><h2 id="operating-title">经营与盈利</h2><p id="operating-period">最近报告期 · 同口径</p></div><button type="button" data-module="financials">查看依据</button></header><div id="operating-chart" class="chart-stage"></div><div id="operating-insight" class="chart-insight">数据加载后显示收入、归母利润与利润转化。</div></article>
+            <aside id="operating-kpis" class="kpi-rail" aria-label="经营关键指标"></aside>
+          </section>
 
-        <section id="operating" class="operating-layout section-anchor" aria-labelledby="operating-title">
-          <article class="primary-chart-panel">
-            <header class="section-heading"><div><h2 id="operating-title">经营与盈利</h2><p id="operating-period">最近报告期 · 单季口径</p></div><button type="button" data-module="financials">查看依据</button></header>
-            <div id="operating-chart" class="chart-stage"></div>
-            <p id="operating-insight" class="chart-insight">数据加载后显示收入与归母利润的同口径变化。</p>
-          </article>
-          <aside id="operating-kpis" class="kpi-rail" aria-label="经营关键指标"></aside>
-        </section>
+          <section id="finance" class="canvas-section research-section finance-section section-anchor" aria-labelledby="finance-title">
+            <header class="section-heading"><div><p class="eyebrow">CASH / BALANCE SHEET</p><h2 id="finance-title">财务与现金</h2><p>经营现金、资产配置与资金来源</p></div><button type="button" data-module="financials">数据与出处</button></header>
+            <div class="finance-layout"><article><h3>现金创造</h3><div id="cash-chart" class="chart-stage compact"></div></article><article><h3>资产配置与资金来源</h3><div id="balance-chart"></div></article></div><div id="finance-table" class="professional-only data-table"></div>
+          </section>
 
-        <section id="finance" class="research-section section-anchor" aria-labelledby="finance-title">
-          <header class="section-heading"><div><p class="eyebrow">CASH &amp; BALANCE SHEET</p><h2 id="finance-title">财务与现金</h2><p>经营现金、资产负债与资金需求放在同一视图</p></div><button type="button" data-module="financials">数据与出处</button></header>
-          <div class="finance-layout"><article><h3>经营现金流</h3><div id="cash-chart" class="chart-stage compact"></div></article><article><h3>资产与负债</h3><div id="balance-chart"></div></article></div>
-          <div id="finance-table" class="professional-only data-table"></div>
-        </section>
+          <section id="valuation" class="canvas-section research-section valuation-section section-anchor" aria-labelledby="valuation-title">
+            <header class="section-heading"><div><p class="eyebrow">VALUATION / EXPECTATIONS</p><h2 id="valuation-title">估值与预期</h2><p>经营结果对应的市场定价，以及相对位置</p></div><button type="button" data-module="valuation">查看依据</button></header><div id="valuation-strip" class="valuation-strip"></div><div id="peers" class="peer-context"><strong>行业位置</strong><span id="industry-state">同行数据加载中</span></div>
+          </section>
 
-        <section id="valuation" class="research-section section-anchor" aria-labelledby="valuation-title">
-          <header class="section-heading"><div><p class="eyebrow">VALUATION</p><h2 id="valuation-title">估值与预期</h2><p>最新估值快照；缺失值不补零</p></div><button type="button" data-module="valuation">查看依据</button></header>
-          <div id="valuation-strip" class="valuation-strip"></div>
-          <div id="peers" class="peer-context"><strong>行业位置</strong><span id="industry-state">行业映射尚未接入，暂不生成同行排名。</span></div>
-        </section>
+          <section id="market" class="canvas-section research-section market-section section-anchor" aria-labelledby="market-title">
+            <header class="section-heading"><div><p class="eyebrow">MARKET</p><h2 id="market-title">市场表现</h2><p id="market-period">价格 · 收益 · 波动与回撤</p></div><button type="button" data-module="market">查看依据</button></header><div class="market-layout"><div id="market-chart" class="chart-stage"></div><aside id="market-kpis" class="market-kpis"></aside></div>
+          </section>
 
-        <section id="market" class="research-section section-anchor" aria-labelledby="market-title">
-          <header class="section-heading"><div><p class="eyebrow">MARKET</p><h2 id="market-title">市场表现</h2><p id="market-period">前复权日线 · 区间收益与回撤</p></div><button type="button" data-module="market">查看依据</button></header>
-          <div class="market-layout"><div id="market-chart" class="chart-stage"></div><aside id="market-kpis" class="market-kpis"></aside></div>
-        </section>
-
-        <section id="events" class="research-section section-anchor" aria-labelledby="events-title">
-          <header class="section-heading"><div><p class="eyebrow">EVENTS &amp; RISKS</p><h2 id="events-title">事件与风险</h2><p>公司披露与外部信息分别标明来源状态</p></div></header>
-          <div id="event-list" class="event-list"></div>
-        </section>
+          <section id="events" class="canvas-section research-section events-section section-anchor" aria-labelledby="events-title">
+            <header class="section-heading"><div><p class="eyebrow">REPORTS / RISKS</p><h2 id="events-title">事件与风险</h2><p>沿报告日期查看变量变化与尚待验证事项</p></div></header><div id="event-list" class="event-list"></div>
+          </section>
+        </div>
 
         <footer class="product-footer"><span>FinScope · 公司研究辅助，不构成投资建议</span><span><button data-action="export">导出数据</button><button data-action="print">打印</button></span></footer>
       </main>
     </div>
   </div>
-
-  <div id="evidence-drawer" class="drawer" aria-hidden="true">
-    <button class="drawer-backdrop" data-close aria-label="关闭数据与出处"></button>
-    <aside role="dialog" aria-modal="true" aria-labelledby="drawer-title" tabindex="-1"><header><div><p class="eyebrow">EVIDENCE</p><h2 id="drawer-title">数据与出处</h2></div><button class="drawer-close" data-close aria-label="关闭">×</button></header><div id="drawer-content"></div></aside>
-  </div>
+  <div id="evidence-drawer" class="drawer" aria-hidden="true"><button class="drawer-backdrop" data-close aria-label="关闭数据与出处"></button><aside role="dialog" aria-modal="true" aria-labelledby="drawer-title" tabindex="-1"><header><div><p class="eyebrow">EVIDENCE</p><h2 id="drawer-title">数据与出处</h2></div><button class="drawer-close" data-close aria-label="关闭">×</button></header><div id="drawer-content"></div></aside></div>
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
-  <script type="module" src="/app.js?v=live-workbench-1"></script>
+  <script type="module" src="/app.js?v=ai-native-workbench-1"></script>
 </body>
 </html>

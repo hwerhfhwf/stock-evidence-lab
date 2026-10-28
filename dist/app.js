@@ -18,6 +18,8 @@ const state = {
   view: normalizeResearchView(null, { name: '比亚迪', thscode: '002594.SZ' }, BYD_SNAPSHOT),
   research: deriveBydResearch(BYD_SNAPSHOT),
   mode: 'simple',
+  selectedDimensions: ['operating_quality', 'financial_trend', 'valuation'],
+  aiConnection: null,
   opener: null,
   searchItems: [],
 };
@@ -339,6 +341,16 @@ function renderEvents() {
   $('#event-list').innerHTML = cards.length ? cards.join('') : emptyState('事件数据暂不可用');
 }
 
+function renderDimensionRail(selectedDimensions = state.selectedDimensions) {
+  const selected = new Set(selectedDimensions);
+  $$('#dimension-rail [data-dimension]').forEach(link => {
+    const active = selected.has(link.dataset.dimension);
+    link.classList.toggle('selected', active);
+    link.classList.toggle('muted', !active);
+    link.setAttribute('aria-current', active ? 'true' : 'false');
+  });
+}
+
 function renderAll() {
   renderModuleStatus();
   renderQuote();
@@ -349,6 +361,7 @@ function renderAll() {
   renderValuation();
   renderMarket();
   renderEvents();
+  renderDimensionRail();
 }
 
 function rawValue(value) {
@@ -389,9 +402,8 @@ function openSources(ids, trigger) {
 function openModuleEvidence(name, trigger) {
   const module = state.bundle?.modules?.[name];
   const labels = { market: '行情数据', financials: '财务报表', valuation: '估值快照', indicators: '财务指标' };
-  const requestIds = module?.requestIds ?? [];
   const errorRows = module?.errors ?? [];
-  openDrawer(`<article class="evidence-item"><h3>${labels[name] || name}</h3><div class="evidence-meta"><span>来源：${state.view.sourceState.label}</span><span>状态：${esc(module?.status || 'unavailable')}</span><span>数据时间：${esc(formatDate(state.view.sourceState.generatedAt, true))}</span></div>${requestIds.length ? `<div class="raw-values">${requestIds.map(id => `<code>requestId · ${esc(id)}</code>`).join('')}</div>` : ''}${errorRows.length ? `<p>${errorRows.map(item => esc(item.message)).join('；')}</p>` : '<p>该模块已返回数据；图表保留原始缺失值，不补零。</p>'}</article>`, trigger);
+  openDrawer(`<article class="evidence-item"><h3>${labels[name] || name}</h3><div class="evidence-meta"><span>来源：${state.view.sourceState.label}</span><span>状态：${esc(module?.status || 'unavailable')}</span><span>数据时间：${esc(formatDate(state.view.sourceState.generatedAt, true))}</span></div>${errorRows.length ? `<p>${errorRows.map(item => esc(item.message)).join('；')}</p>` : '<p>该模块已返回数据；图表保留原始缺失值，不补零。</p>'}</article>`, trigger);
 }
 
 function closeDrawer() {
@@ -470,9 +482,31 @@ $('#research-task').addEventListener('submit', event => {
   const question = $('#research-question').value.trim();
   const workbench = buildWorkbench(state.bundle, state.company, question);
   const selected = workbench.report.selectedDimensions.slice(0, 3);
-  $('#priority-result').innerHTML = `<strong>${esc(question || '公司研究')}</strong><ol>${selected.map(item => `<li><a href="#${sectionByDimension[item.dimension]}">${esc(item.label)}</a>：${esc(item.relevanceReason)}</li>`).join('')}</ol>`;
+  state.selectedDimensions = selected.map(item => item.dimension);
+  renderDimensionRail(state.selectedDimensions);
+  $('#priority-result').innerHTML = `<strong>${esc(question || '公司研究')}</strong><ol>${selected.map(item => `<li><a href="#${sectionByDimension[item.dimension]}">${esc(item.label)}</a></li>`).join('')}</ol>`;
   $('#priority-result').hidden = false;
   document.getElementById(sectionByDimension[selected[0]?.dimension] || 'operating')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+});
+
+$('#ai-settings').addEventListener('click', () => {
+  const panel = $('#ai-settings-panel');
+  const open = panel.hidden;
+  panel.hidden = !open;
+  $('#ai-settings').setAttribute('aria-expanded', String(open));
+  if (open) $('#ai-endpoint').focus();
+});
+
+$('#ai-connect').addEventListener('click', () => {
+  const endpoint = $('#ai-endpoint').value.trim();
+  const model = $('#ai-model').value.trim();
+  const apiKey = $('#ai-key').value.trim();
+  if (!endpoint || !model || !apiKey) return showToast('请填写接口、模型和临时 API Key');
+  state.aiConnection = { endpoint, model, apiKey };
+  $('#ai-connection-state').textContent = model;
+  $('#ai-settings-panel').hidden = true;
+  $('#ai-settings').setAttribute('aria-expanded', 'false');
+  showToast('模型连接仅在当前页面有效');
 });
 
 const searchInput = $('#stock-search');

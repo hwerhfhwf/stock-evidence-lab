@@ -36,3 +36,10 @@ test('browser orchestrates live search and module-level research rendering', () 
   }
   for (const token of ['aria-busy', 'role="status"', 'search-results']) assert.ok(html.includes(token), token);
 });
+
+test('research question updates visible dimensions without changing source data', () => {
+  for (const token of ['dimension-rail', 'data-dimension', 'selectedDimensions', 'renderDimensionRail']) {
+    assert.match(html + app, new RegExp(token), token);
+  }
+  assert.doesNotMatch(app, /innerHTML\s*=\s*.*requestId/);
+});
