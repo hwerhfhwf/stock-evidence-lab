@@ -4,6 +4,7 @@ export const BYD_SNAPSHOT = Object.freeze({
   meta: {
     symbol: '002594.SZ',
     company: '比亚迪',
+    companyType: 'manufacturing',
     security: 'A股 · 深交所',
     financialThrough: '2026-06-30',
     informationCutoff: '2026-08-29',

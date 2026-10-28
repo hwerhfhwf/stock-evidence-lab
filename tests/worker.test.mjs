@@ -110,3 +110,69 @@ test('research endpoint returns safe company metadata and provider module states
     globalThis.fetch = previousFetch;
   }
 });
+
+test('AI endpoint forwards an OpenAI-compatible request without returning the API key', async () => {
+  const previousFetch = globalThis.fetch;
+  let outbound;
+  globalThis.fetch = async (url, init) => {
+    outbound = { url: String(url), headers: new Headers(init.headers), body: JSON.parse(init.body) };
+    return new Response(JSON.stringify({ choices: [{ message: { content: '{"claims":[]}' } }], model: 'qwen-test', usage: { total_tokens: 12 } }), { status: 200, headers: { 'content-type': 'application/json' } });
+  };
+  try {
+    const request = new Request('https://example.test/api/ai/analyze', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        endpoint: 'https://api.example.com/v1', model: 'qwen-test', apiKey: 'user-session-key',
+        messages: [{ role: 'user', content: '分析经营质量' }], outputSchema: { type: 'object' },
+      }),
+    });
+    const response = await worker.fetch(request, {}, {});
+    const body = await response.json();
+    assert.equal(response.status, 200);
+    assert.equal(outbound.url, 'https://api.example.com/v1/chat/completions');
+    assert.equal(outbound.headers.get('authorization'), 'Bearer user-session-key');
+    assert.equal(outbound.body.model, 'qwen-test');
+    assert.equal(body.content, '{"claims":[]}');
+    assert.equal(JSON.stringify(body).includes('user-session-key'), false);
+  } finally {
+    globalThis.fetch = previousFetch;
+  }
+});
+
+test('AI endpoint rejects unsafe endpoints before making a network request', async () => {
+  const previousFetch = globalThis.fetch;
+  let called = false;
+  globalThis.fetch = async () => { called = true; throw new Error('should not run'); };
+  try {
+    const request = new Request('https://example.test/api/ai/analyze', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ endpoint: 'http://127.0.0.1:8080/v1', model: 'm', apiKey: 'k', messages: [] }),
+    });
+    const response = await worker.fetch(request, {}, {});
+    const body = await response.json();
+    assert.equal(response.status, 400);
+    assert.equal(body.error.code, 'invalid_ai_endpoint');
+    assert.equal(called, false);
+  } finally {
+    globalThis.fetch = previousFetch;
+  }
+});
+
+test('AI endpoint converts upstream failures into a local safe error', async () => {
+  const previousFetch = globalThis.fetch;
+  globalThis.fetch = async () => new Response('upstream secret body', { status: 429 });
+  try {
+    const request = new Request('https://example.test/api/ai/analyze', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ endpoint: 'https://api.example.com/v1', model: 'm', apiKey: 'k', messages: [] }),
+    });
+    const response = await worker.fetch(request, {}, {});
+    const body = await response.json();
+    assert.equal(response.status, 502);
+    assert.equal(body.error.code, 'ai_upstream_error');
+    assert.equal(JSON.stringify(body).includes('secret body'), false);
+  } finally {
+    globalThis.fetch = previousFetch;
+  }
+});

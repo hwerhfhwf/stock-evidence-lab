@@ -48,7 +48,16 @@ function selectedDimensions(intent,bundle,companyType){
 
 function proposition(input){
   if(!DIRECTIONS.has(input.evidenceDirection)||!STATUSES.has(input.epistemicStatus))throw new Error('invalid proposition state');
-  return {evidenceRefs:[],limitations:[],...input};
+  const normalized={evidenceRefs:[],limitations:[],drilldowns:[],...input};
+  const slot=input.evidenceDirection==='missing'?'unknown':input.evidenceDirection;
+  normalized.evidenceGroups={positive:[],negative:[],conflicting:[],unknown:[]};
+  normalized.evidenceGroups[slot].push({
+    label:input.title,
+    evidenceRefs:normalized.evidenceRefs,
+    ...(slot==='conflicting'?{conflictType:'metric_divergence'}:{}),
+    ...(slot==='unknown'?{requiredFields:normalized.limitations}:{}),
+  });
+  return normalized;
 }
 
 function financialPeriod(bundle){
