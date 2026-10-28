@@ -43,3 +43,9 @@ test('research question updates visible dimensions without changing source data'
   }
   assert.doesNotMatch(app, /innerHTML\s*=\s*.*requestId/);
 });
+
+test('connected AI follows preview apply and undo instead of silently replacing research', () => {
+  for (const id of ['ai-preview', 'ai-apply', 'ai-undo', 'custom-research']) assert.match(html, new RegExp(`id="${id}"`), id);
+  for (const token of ['analyzeResearch', 'validateResearchPatch', 'renderAIPreview', 'applyAIPreview', 'undoAIResearch']) assert.match(app, new RegExp(token), token);
+  assert.doesNotMatch(app, /eval\(|new Function/);
+});

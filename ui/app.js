@@ -3,6 +3,7 @@ import { BYD_SNAPSHOT, createBydDemoBundle, deriveBydResearch, factsForMode } fr
 import { createResearchClient, ResearchClientError } from '/data-client.js';
 import { normalizeResearchView } from '/research-view.js';
 import { buildResearchClaims, buildSourcePackage } from '/research-protocol.js';
+import { analyzeResearch, parseResearchResponse, validateResearchPatch } from '/ai-adapter.js';
 import {
   buildBalanceFlow,
   buildCashCoverage,
@@ -35,6 +36,9 @@ const state = {
   sourcePackage: null,
   claims: [],
   activeReport: 'H126',
+  aiPreview: null,
+  customCharts: [],
+  researchHistory: [],
   opener: null,
   searchItems: [],
 };
@@ -47,6 +51,12 @@ function refreshResearchProtocol() {
   state.claims = buildResearchClaims(state.sourcePackage);
   sourceById.clear();
   for (const source of state.sourcePackage.sources) sourceById.set(source.id, source);
+}
+
+function resetAIResearchState() {
+  state.aiPreview = null;
+  state.customCharts = [];
+  state.researchHistory = [];
 }
 
 refreshResearchProtocol();
@@ -378,6 +388,111 @@ function renderClaimLayer() {
   </article>`;
 }
 
+function renderFieldChart(spec) {
+  const fields = spec.series.map(series => ({ ...series, field: state.sourcePackage.fields.find(field => field.id === series.fieldId) }));
+  const values = fields.map(item => number(item.field?.value)).filter(value => value !== null);
+  if (!values.length) return emptyState('图表字段暂不可用');
+  const max = Math.max(1, ...values.map(Math.abs));
+  const width = 520;
+  const rowHeight = 42;
+  const zero = 265;
+  return `<svg class="chart-svg custom-field-chart" viewBox="0 0 ${width} ${fields.length * rowHeight + 20}" role="img" tabindex="0" aria-label="${esc(spec.title)}">
+    <line x1="${zero}" x2="${zero}" y1="6" y2="${fields.length * rowHeight + 4}" class="grid"/>
+    ${fields.map((item, index) => {
+      const value = number(item.field?.value);
+      const bar = value === null ? 0 : Math.abs(value) / max * 180;
+      const x = value !== null && value < 0 ? zero - bar : zero;
+      const y = index * rowHeight + 12;
+      return `<text x="0" y="${y + 12}" class="label">${esc(item.label ?? item.field?.label)}</text><rect x="${x}" y="${y}" width="${bar}" height="18" rx="2" class="${value !== null && value < 0 ? 'custom-negative' : 'custom-positive'}"/><text x="${value !== null && value < 0 ? x - 5 : x + bar + 5}" y="${y + 12}" text-anchor="${value !== null && value < 0 ? 'end' : 'start'}" class="value">${value === null ? '—' : `${value.toFixed(2)}${item.field?.unit ?? ''}`}</text>`;
+    }).join('')}
+  </svg>`;
+}
+
+function renderCustomCharts() {
+  const section = $('#custom-research');
+  section.hidden = state.customCharts.length === 0;
+  $('#custom-chart-grid').innerHTML = state.customCharts.map(spec => `<article class="custom-chart-card"><header><div><small>${esc(spec.type)}</small><h3>${esc(spec.title)}</h3></div><button type="button" data-field-refs="${esc(spec.series.map(item => item.fieldId).join(','))}">字段与出处</button></header>${renderFieldChart(spec)}</article>`).join('');
+}
+
+function renderAIPreview(patch = state.aiPreview) {
+  const preview = $('#ai-preview');
+  if (!patch) {
+    if (state.researchHistory.length) {
+      preview.hidden = false;
+      $('#ai-preview-content').innerHTML = '<div><span class="epistemic-marker inference"></span><strong>模型研究已应用</strong><p>图表与判断仍引用原始字段；可撤销回默认研究。</p></div>';
+      $('#ai-apply').hidden = true;
+      $('#ai-preview-close').hidden = true;
+      $('#ai-undo').hidden = false;
+    } else {
+      preview.hidden = true;
+    }
+    return;
+  }
+  preview.hidden = false;
+  $('#ai-apply').hidden = false;
+  $('#ai-preview-close').hidden = false;
+  $('#ai-preview-content').innerHTML = `<div><span class="epistemic-marker inference"></span><strong>模型研究草稿</strong><p>拟调整 ${patch.selectedDimensions.length} 个研究维度，加入 ${patch.claims.length} 条结构化分析${patch.chartSpecs.length ? `、${patch.chartSpecs.length} 张固定模板图表` : ''}。原始数值未修改。</p></div><ol>${patch.claims.map(claim => `<li><span>${esc(epistemicLabels[claim.epistemicStatus])}</span>${esc(claim.statement)}</li>`).join('')}</ol>`;
+  $('#ai-undo').hidden = state.researchHistory.length === 0;
+}
+
+function applyAIPreview() {
+  if (!state.aiPreview) return;
+  state.researchHistory.push({ selectedDimensions: [...state.selectedDimensions], claims: state.claims, customCharts: state.customCharts });
+  state.selectedDimensions = [...state.aiPreview.selectedDimensions];
+  const aiIds = new Set(state.aiPreview.claims.map(claim => claim.id));
+  state.claims = [...state.aiPreview.claims, ...state.claims.filter(claim => !aiIds.has(claim.id))];
+  state.customCharts = [...state.aiPreview.chartSpecs];
+  state.aiPreview = null;
+  renderDimensionRail();
+  renderClaimLayer();
+  renderCustomCharts();
+  renderAIPreview();
+  showToast('已应用模型研究；确定性数值仍来自数据层');
+}
+
+function undoAIResearch() {
+  const previous = state.researchHistory.pop();
+  if (!previous) return;
+  state.selectedDimensions = previous.selectedDimensions;
+  state.claims = previous.claims;
+  state.customCharts = previous.customCharts;
+  renderDimensionRail();
+  renderClaimLayer();
+  renderCustomCharts();
+  renderAIPreview();
+  showToast('已撤销上次模型研究');
+}
+
+async function runAIResearch(question) {
+  if (!state.aiConnection) return;
+  const button = $('#run-diagnosis');
+  button.disabled = true;
+  button.textContent = '研究中…';
+  try {
+    const result = await analyzeResearch({
+      ...state.aiConnection,
+      messages: [
+        { role: 'system', content: '你是公司研究编排器。只使用 sourcePackage 中的字段；事实、推断、暂无法验证必须分开；正面、负面、指标方向分化和未知是同一判断的证据属性；不得预测涨跌、承诺收益或给出买卖建议。仅返回 JSON：selectedDimensions、claims、chartSpecs。图表只可引用字段 id，不得提供 data 或 values。' },
+        { role: 'user', content: JSON.stringify({ question, sourcePackage: state.sourcePackage, defaultClaims: state.claims }) },
+      ],
+      tools: [],
+      outputSchema: null,
+    });
+    const validation = validateResearchPatch(parseResearchResponse(result.content), state.sourcePackage);
+    if (!validation.ok) throw new Error(validation.errors.join('；'));
+    state.aiPreview = validation.patch;
+    renderAIPreview();
+    $('#ai-preview').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  } catch {
+    state.aiPreview = null;
+    renderAIPreview();
+    showToast('模型结果未通过校验；已保留默认研究');
+  } finally {
+    button.disabled = false;
+    button.textContent = '研究';
+  }
+}
+
 function reportMetrics(sourceId) {
   if (!isByd(state.view.company.thscode)) return null;
   if (sourceId === 'H126') {
@@ -455,6 +570,7 @@ function renderAll() {
   renderEvents();
   renderDimensionRail();
   renderClaimLayer();
+  renderCustomCharts();
 }
 
 function rawValue(value) {
@@ -558,6 +674,7 @@ async function loadCompany(company, { initial = false } = {}) {
     state.company = { ...company, companyType: isByd(company.thscode) ? 'manufacturing' : 'general' };
     state.bundle = bundle;
     state.view = normalizeResearchView(bundle, company, isByd(company.thscode) ? BYD_SNAPSHOT : null);
+    resetAIResearchState();
     refreshResearchProtocol();
     $('#stock-search').value = `${state.view.company.name} · ${state.view.company.thscode}`;
   } catch (error) {
@@ -565,6 +682,7 @@ async function loadCompany(company, { initial = false } = {}) {
       state.company = { ...company, companyType: 'manufacturing' };
       state.bundle = createBydDemoBundle(BYD_SNAPSHOT);
       state.view = normalizeResearchView(null, company, BYD_SNAPSHOT);
+      resetAIResearchState();
       refreshResearchProtocol();
       showToast('实时数据暂不可用，已切换为公开披露快照');
     } else {
@@ -609,7 +727,7 @@ function setMode(mode, options = {}) {
 
 const sectionByDimension = { operating_quality: 'operating', financial_trend: 'finance', valuation: 'valuation', market_characteristics: 'market', industry_position: 'valuation', material_events: 'events', risk: 'events' };
 
-$('#research-task').addEventListener('submit', event => {
+$('#research-task').addEventListener('submit', async event => {
   event.preventDefault();
   const question = $('#research-question').value.trim();
   const workbench = buildWorkbench(state.bundle, state.company, question);
@@ -620,6 +738,7 @@ $('#research-task').addEventListener('submit', event => {
   $('#priority-result').innerHTML = `<strong>${esc(question || '公司研究')}</strong><ol>${selected.map(item => `<li><a href="#${sectionByDimension[item.dimension]}">${esc(item.label)}</a></li>`).join('')}</ol>`;
   $('#priority-result').hidden = false;
   document.getElementById(sectionByDimension[selected[0]?.dimension] || 'operating')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  await runAIResearch(question);
 });
 
 $('#ai-settings').addEventListener('click', () => {
@@ -636,10 +755,22 @@ $('#ai-connect').addEventListener('click', () => {
   const apiKey = $('#ai-key').value.trim();
   if (!endpoint || !model || !apiKey) return showToast('请填写接口、模型和临时 API Key');
   state.aiConnection = { endpoint, model, apiKey };
+  $('#ai-key').value = '';
   $('#ai-connection-state').textContent = model;
   $('#ai-settings-panel').hidden = true;
   $('#ai-settings').setAttribute('aria-expanded', 'false');
   showToast('模型连接仅在当前页面有效');
+});
+
+$('#ai-apply').addEventListener('click', applyAIPreview);
+$('#ai-undo').addEventListener('click', undoAIResearch);
+$('#ai-preview-close').addEventListener('click', () => {
+  state.aiPreview = null;
+  renderAIPreview();
+});
+$('#custom-research-clear').addEventListener('click', () => {
+  state.customCharts = [];
+  renderCustomCharts();
 });
 
 const searchInput = $('#stock-search');

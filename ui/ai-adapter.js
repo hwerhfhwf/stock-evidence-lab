@@ -76,3 +76,50 @@ export function validateChartSpec(candidate, sourcePackage) {
     },
   };
 }
+import { validateResearchClaim } from './research-protocol.js';
+
+
+const allowedDimensions = new Set(['operating_quality', 'financial_trend', 'valuation', 'market_characteristics', 'industry_position', 'material_events', 'risk']);
+
+export function parseResearchResponse(content) {
+  try {
+    const parsed = JSON.parse(content);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('not-object');
+    return parsed;
+  } catch {
+    throw new AIAdapterError('模型返回的研究结构无法解析', 'invalid_research_json');
+  }
+}
+
+export function validateResearchPatch(candidate, sourcePackage) {
+  const errors = [];
+  const fieldIds = new Set((sourcePackage?.fields ?? []).map(field => field.id));
+  if (!candidate || typeof candidate !== 'object') return { ok: false, errors: ['研究补丁为空'] };
+  const selectedDimensions = Array.isArray(candidate.selectedDimensions)
+    ? [...new Set(candidate.selectedDimensions)].filter(id => {
+      if (allowedDimensions.has(id)) return true;
+      errors.push(`未知研究维度：${id}`);
+      return false;
+    }).slice(0, 7)
+    : [];
+  const claims = Array.isArray(candidate.claims) ? candidate.claims.slice(0, 8) : [];
+  for (const claim of claims) {
+    const result = validateResearchClaim(claim);
+    if (!result.ok) errors.push(...result.errors.map(error => `${claim?.id ?? 'claim'}：${error}`));
+    const refs = [
+      ...(claim?.sourceRefs ?? []),
+      ...Object.values(claim?.evidenceGroups ?? {}).flatMap(items => (items ?? []).flatMap(item => item.evidenceRefs ?? [])),
+      ...(claim?.drilldowns ?? []).flatMap(item => item.evidenceRefs ?? []),
+    ];
+    for (const ref of refs) if (!fieldIds.has(ref)) errors.push(`${claim?.id ?? 'claim'} 引用了未知字段 ${ref}`);
+  }
+  const chartSpecs = [];
+  for (const spec of Array.isArray(candidate.chartSpecs) ? candidate.chartSpecs.slice(0, 6) : []) {
+    const result = validateChartSpec(spec, sourcePackage);
+    if (!result.ok) errors.push(...result.errors.map(error => `${spec?.id ?? 'chart'}：${error}`));
+    else chartSpecs.push(result.spec);
+  }
+  if (!selectedDimensions.length) errors.push('缺少可用研究维度');
+  if (!claims.length) errors.push('缺少研究判断');
+  return { ok: errors.length === 0, errors, patch: errors.length ? null : { selectedDimensions, claims, chartSpecs } };
+}

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { analyzeResearch, validateChartSpec } from '../ui/ai-adapter.js';
+import { analyzeResearch, validateChartSpec, validateResearchPatch } from '../ui/ai-adapter.js';
 
 const sourcePackage = {
   fields: [
@@ -65,5 +65,39 @@ test('chart spec rejects unknown charts fields arbitrary data and advice copy', 
     { id: 'x', type: 'time_series', title: '建议立即买入', series: [{ fieldId: 'metric:revenue-growth' }], sourceRefs: ['H126'] },
   ];
   for (const spec of invalid) assert.equal(validateChartSpec(spec, sourcePackage).ok, false);
+});
+
+test('AI research patch can extend dimensions claims and fixed chart specs without changing sources', () => {
+  const claim = {
+    id: 'ai-operating', dimension: 'operating_quality', question: '利润如何转化？',
+    statement: '归母净利润增速低于营业收入增速。', epistemicStatus: 'inference',
+    evidenceGroups: {
+      positive: [],
+      negative: [{ id: 'gap', label: '利润增速低于收入', evidenceRefs: ['metric:revenue-growth', 'metric:profit-growth'] }],
+      conflicting: [], unknown: [],
+    },
+    sourceRefs: ['metric:revenue-growth', 'metric:profit-growth'],
+    drilldowns: [{ type: 'financial_period', label: '查看期次', period: '2026H1', evidenceRefs: ['metric:revenue-growth'] }],
+  };
+  const result = validateResearchPatch({
+    selectedDimensions: ['operating_quality', 'financial_trend'], claims: [claim],
+    chartSpecs: [{ id: 'growth', type: 'grouped_bar_line', title: '收入与利润增速', series: [{ fieldId: 'metric:revenue-growth' }, { fieldId: 'metric:profit-growth' }], sourceRefs: ['H126'], unit: '%' }],
+  }, sourcePackage);
+  assert.equal(result.ok, true);
+  assert.equal(result.patch.claims[0].id, 'ai-operating');
+  assert.equal(result.patch.chartSpecs[0].id, 'growth');
+});
+
+test('AI research patch rejects invented evidence and keeps the deterministic state usable', () => {
+  const result = validateResearchPatch({
+    selectedDimensions: ['operating_quality'],
+    claims: [{
+      id: 'invented', dimension: 'operating_quality', question: '问题', statement: '结论', epistemicStatus: 'fact',
+      evidenceGroups: { positive: [{ id: 'x', label: 'x', evidenceRefs: ['invented:value'] }], negative: [], conflicting: [], unknown: [] },
+      sourceRefs: ['invented:value'], drilldowns: [],
+    }], chartSpecs: [],
+  }, sourcePackage);
+  assert.equal(result.ok, false);
+  assert.match(result.errors.join('；'), /invented:value/);
 });
 
