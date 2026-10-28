@@ -20,6 +20,7 @@ test('propositions expose evidence direction and epistemic status independently'
   assert.match(app,/data-proposition/);
   assert.match(combined,/证据方向/);
   assert.match(combined,/认知状态/);
+  for(const copy of ['原始字段','计算过程','来源与口径','限制条件'])assert.match(combined,new RegExp(copy));
 });
 
 test('old consumer copy and implicit ratings are absent',()=>{

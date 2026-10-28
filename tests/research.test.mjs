@@ -23,6 +23,13 @@ test('calculateMarketSignals preserves unknowns for short or empty histories', (
   assert.equal(calculateMarketSignals([{ close_price: 10, date_ms: 1 }]).return60, null);
 });
 
+test('calculateMarketSignals records its trading range and forward-adjusted basis',()=>{
+  const bars=[{date_ms:Date.UTC(2026,0,2),close_price:10},{date_ms:Date.UTC(2026,0,5),close_price:11}];
+  const result=calculateMarketSignals(bars);
+  assert.deepEqual(result.range,{start:'2026-01-02',end:'2026-01-05'});
+  assert.equal(result.adjustment,'forward_adjusted');
+});
+
 test('reportFromPeriodEnd maps quarter ends to Fuyao report identifiers', () => {
   assert.equal(reportFromPeriodEnd(Date.UTC(2026, 5, 30)), '2026-2');
   assert.equal(reportFromPeriodEnd(Date.UTC(2025, 11, 31)), '2025-4');

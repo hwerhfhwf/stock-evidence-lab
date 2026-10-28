@@ -44,6 +44,8 @@ export function calculateMarketSignals(inputBars) {
   const turnover20 = bars.slice(-20).map((bar) => numeric(bar.turnover)).filter(Number.isFinite);
   return {
     points: bars.length,
+    range: bars.length ? { start: new Date(bars[0].date_ms).toISOString().slice(0, 10), end: new Date(bars.at(-1).date_ms).toISOString().slice(0, 10) } : null,
+    adjustment: 'forward_adjusted',
     lastClose: closes.at(-1) ?? null,
     ma20: movingAverage(closes, 20),
     ma60: movingAverage(closes, 60),
