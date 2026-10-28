@@ -2,12 +2,19 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import worker from '../worker/index.js';
 
-test('worker serves the research UI with security headers', async () => {
+test('worker serves the one-minute company health UI with security headers', async () => {
   const response = await worker.fetch(new Request('https://example.test/'), { FUYAO_API_KEY: 'secret' }, {});
   assert.equal(response.status, 200);
   assert.match(response.headers.get('content-type'), /text\/html/);
   assert.match(response.headers.get('content-security-policy'), /default-src 'self'/);
-  assert.match(await response.text(), /Stock Evidence Lab/);
+  assert.match(await response.text(), /一分钟看懂一家公司/);
+});
+
+test('worker serves the health model as a same-origin module', async () => {
+  const response = await worker.fetch(new Request('https://example.test/health-model.js'), {}, {});
+  assert.equal(response.status, 200);
+  assert.match(response.headers.get('content-type'), /text\/javascript/);
+  assert.match(await response.text(), /buildHealthReport/);
 });
 
 test('health endpoint reports missing runtime secret without exposing it', async () => {
