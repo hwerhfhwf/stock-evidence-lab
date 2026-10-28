@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { buildDiagnosisReport } from '../ui/diagnosis-model.js';
+import { selectDiagnosisDimensions } from '../ui/research-protocol.js';
 
 const company={name:'美的集团',thscode:'000333.SZ',companyType:'manufacturing'};
 const bundle={generatedAt:'2026-10-28T04:00:00Z',modules:{
@@ -154,6 +155,15 @@ test('market questions route market characteristics first and disclose matching 
   assert.ok(proposition.evidenceRefs.includes('market-drawdown-60d'));
   assert.ok(market.calculations.some(x=>x.id==='market-return-60d'));
   assert.ok(market.calculations.some(x=>x.id==='market-drawdown-60d-calc'));
+});
+
+test('dimension routing uses the question without changing the underlying evidence',()=>{
+  const base={companyType:'manufacturing',availableDimensions:['operating_quality','financial_trend','valuation','market_characteristics','risk']};
+  const operating=selectDiagnosisDimensions({...base,question:'毛利率和费用率如何影响利润转化？'});
+  const market=selectDiagnosisDimensions({...base,question:'最近行情回撤和波动如何？'});
+  assert.equal(operating[0].id,'operating_quality');
+  assert.equal(market[0].id,'market_characteristics');
+  assert.deepEqual(new Set(operating.map(x=>x.id)),new Set(market.map(x=>x.id)));
 });
 
 test('short market histories do not claim a 60-observation fact',()=>{
