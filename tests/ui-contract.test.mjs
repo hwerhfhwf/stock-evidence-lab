@@ -12,5 +12,5 @@ test('distribution is generated from the same multidimensional UI',()=>{
 });
 
 test('distribution client renders the diagnosis model and proposition drawer',()=>{
-  for(const token of ['buildDiagnosisReport','renderDiagnosisReport','data-proposition','/api/research'])assert.match(app,new RegExp(token));
+  for(const token of ['buildWorkbench','renderDiagnosisReport','data-proposition','/api/research'])assert.match(app,new RegExp(token));
 });
