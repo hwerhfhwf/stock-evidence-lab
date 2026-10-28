@@ -53,4 +53,3 @@ test('evidence drawer renders dated calculation inputs',()=>{
   assert.match(app,/evidence\.inputValues/);
   assert.match(combined,/计算输入/);
 });
-

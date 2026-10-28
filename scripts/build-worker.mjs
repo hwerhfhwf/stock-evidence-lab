@@ -24,4 +24,4 @@ await Promise.all([
   copyFile(resolve(root, 'worker/ui.js'), resolve(root, 'dist/server/ui.js')),
   copyFile(resolve(root, '.openai/hosting.json'), resolve(root, 'dist/.openai/hosting.json')),
 ]);
-console.log('built one question-first UI for dist and Worker');
+console.log('built one multidimensional diagnosis UI for dist and Worker');

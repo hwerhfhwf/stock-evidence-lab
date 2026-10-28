@@ -124,4 +124,3 @@
 - [ ] **Step 3: 将功能分支合并到 `main`**，确认提交历史与工作树干净。
 - [ ] **Step 4: 用已登录账号创建公开仓库并推送 `main`**。
 - [ ] **Step 5: 用 GitHub API 复核仓库 `visibility=public`，并从网页读取 README 与关键源码。
-
