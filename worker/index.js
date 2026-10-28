@@ -67,6 +67,8 @@ export default {
       }
       if (url.pathname === '/api/research') {
         const bundle = await buildResearchBundle(client, url.searchParams.get('thscode'), Date.now());
+        const name = (url.searchParams.get('name') ?? '').trim().slice(0, 80);
+        bundle.company = { name: name || bundle.modules.market.snapshot?.name || bundle.thscode, thscode: bundle.thscode };
         return response(bundle, { cache: 'private, max-age=90' });
       }
     } catch (error) {

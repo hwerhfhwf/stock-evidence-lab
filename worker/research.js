@@ -1,4 +1,5 @@
 import { validateThscode } from './fuyao.js';
+import { resolveIfindContext } from './ifind.js';
 
 const round = (value, digits = 2) => Number.isFinite(value) ? Number(value.toFixed(digits)) : null;
 const numeric = (value) => value === null || value === undefined || value === '' ? null : Number(value);
@@ -85,7 +86,7 @@ function items(module) {
   return module.status === 'ok' && Array.isArray(module.data?.item) ? module.data.item : [];
 }
 
-export async function buildResearchBundle(client, thscode, now = Date.now()) {
+export async function buildResearchBundle(client, thscode, now = Date.now(), options = {}) {
   const code = validateThscode(thscode);
   const end = Number(now);
   const start = end - 400 * 24 * 60 * 60 * 1000;
@@ -95,8 +96,9 @@ export async function buildResearchBundle(client, thscode, now = Date.now()) {
     client.incomeStatements(code, 8),
     client.balanceSheets(code, 8),
     client.cashFlowStatements(code, 8),
+    client.valuations(code),
   ]);
-  const [snapshot, historical, income, balance, cashflow] = results.map(settled);
+  const [snapshot, historical, income, balance, cashflow, valuation] = results.map(settled);
 
   const marketErrors = [snapshot, historical].filter((part) => part.status === 'error').map((part) => part.error);
   const market = {
@@ -129,10 +131,39 @@ export async function buildResearchBundle(client, thscode, now = Date.now()) {
       : { status: 'error', data: null, report, requestIds: [], errors: [result.error] };
   }
 
+  const valuationItems = items(valuation);
+  const valuationModule = valuation.status === 'ok' && valuationItems.length
+    ? {
+      status: 'ok',
+      data: valuationItems[0],
+      timestamp: valuation.data?.timestamp ?? null,
+      requestIds: [valuation.requestId].filter(Boolean),
+      errors: [],
+    }
+    : {
+      status: 'unavailable',
+      data: null,
+      timestamp: valuation.data?.timestamp ?? null,
+      requestIds: [valuation.requestId].filter(Boolean),
+      errors: valuation.status === 'error' ? [valuation.error] : [{ code: 'valuation_empty', message: 'No valuation snapshot is available', requestId: valuation.requestId ?? null }],
+    };
+
+  const industry = {
+    status: 'unavailable',
+    data: null,
+    requestIds: [],
+    errors: [{ code: 'industry_mapping_unavailable', message: 'A verified stock-to-industry mapping is not available from the current Fuyao bundle', requestId: null }],
+  };
+  const context = await resolveIfindContext(options.contextProvider, { thscode: code, generatedAt: new Date(end).toISOString() });
+
   return {
     thscode: code,
     generatedAt: new Date(end).toISOString(),
     source: '同花顺扶摇金融数据 API',
-    modules: { market, financials, indicators },
+    providers: {
+      fuyao: market.status === 'error' && financials.status === 'error' && indicators.status === 'error' && valuationModule.status === 'unavailable' ? 'unavailable' : 'available',
+      ifind: context.status,
+    },
+    modules: { market, financials, indicators, valuation: valuationModule, industry, context },
   };
 }

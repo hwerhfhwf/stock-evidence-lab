@@ -45,11 +45,38 @@ test('buildResearchBundle keeps successful modules when one upstream request fai
     balanceSheets: () => Promise.reject(Object.assign(new Error('denied'), { code: 'permission_denied', requestId: 'deny-id' })),
     cashFlowStatements: () => ok({ item: [{ period_end_ms: Date.UTC(2026, 5, 30), net_cash_flow_operating: 12 }] }),
     indicators: () => ok({ report: '2026-2', abilities: [] }),
+    valuations: () => ok({ timestamp: 10, item: [{ thscode: '000333.SZ', pe_ttm: 12.5, pb_mrq: 2.1, ps_ttm: 1.4, pcf_ttm: 10.8 }] }),
   };
   const bundle = await buildResearchBundle(client, '000333.SZ', Date.UTC(2026, 9, 28));
   assert.equal(bundle.modules.market.status, 'ok');
   assert.equal(bundle.modules.financials.status, 'partial');
   assert.equal(bundle.modules.financials.errors[0].code, 'permission_denied');
   assert.equal(bundle.modules.indicators.status, 'ok');
+  assert.equal(bundle.modules.valuation.status, 'ok');
+  assert.equal(bundle.modules.valuation.data.pe_ttm, 12.5);
+  assert.equal(bundle.modules.context.status, 'unavailable');
+  assert.equal(bundle.modules.context.errors[0].code, 'ifind_not_configured');
+  assert.equal(bundle.modules.industry.status, 'unavailable');
   assert.equal(bundle.modules.market.signals.points, 121);
+});
+
+test('buildResearchBundle keeps Fuyao modules available when optional iFinD context fails', async () => {
+  const ok = (data) => Promise.resolve({ data, requestId: 'ok-id' });
+  const client = {
+    snapshot: () => ok({ timestamp: 10, item: [{ thscode: '002594.SZ', last_price: 82.74 }] }),
+    historical: () => ok({ timestamp: 10, item: [{ date_ms: 1, close_price: 80 }] }),
+    incomeStatements: () => ok({ item: [{ period_end_ms: Date.UTC(2026, 5, 30), operating_income: 100 }] }),
+    balanceSheets: () => ok({ item: [] }),
+    cashFlowStatements: () => ok({ item: [] }),
+    indicators: () => ok({ report: '2026-2', abilities: [] }),
+    valuations: () => ok({ timestamp: 10, item: [{ thscode: '002594.SZ', pe_ttm: null, pb_mrq: 4.2 }] }),
+  };
+  const contextProvider = async () => { throw Object.assign(new Error('quota reached'), { code: 'ifind_rate_limited' }); };
+  const bundle = await buildResearchBundle(client, '002594.SZ', Date.UTC(2026, 9, 28), { contextProvider });
+  assert.equal(bundle.modules.market.status, 'ok');
+  assert.equal(bundle.modules.financials.status, 'ok');
+  assert.equal(bundle.modules.valuation.status, 'ok');
+  assert.equal(bundle.modules.valuation.data.pe_ttm, null);
+  assert.equal(bundle.modules.context.status, 'unavailable');
+  assert.equal(bundle.modules.context.errors[0].code, 'ifind_rate_limited');
 });

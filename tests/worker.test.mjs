@@ -78,3 +78,29 @@ test('search endpoint returns only A-share candidates and never returns the API 
     globalThis.fetch = previousFetch;
   }
 });
+
+test('research endpoint returns safe company metadata and provider module states', async () => {
+  const previousFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    const path = new URL(url).pathname;
+    let data = { item: [] };
+    if (path.endsWith('/prices/snapshot')) data = { timestamp: 10, item: [{ thscode: '000333.SZ', last_price: 80 }] };
+    if (path.endsWith('/prices/historical')) data = { timestamp: 10, item: [{ date_ms: 1, close_price: 80 }] };
+    if (path.endsWith('/income-statements')) data = { item: [{ period_end_ms: Date.UTC(2026, 5, 30), operating_income: 100 }] };
+    if (path.endsWith('/financials/indicators')) data = { report: '2026-2', abilities: [] };
+    if (path.endsWith('/valuations/snapshot')) data = { timestamp: 10, item: [{ thscode: '000333.SZ', pe_ttm: 12.5, pb_mrq: 2.1, ps_ttm: 1.4, pcf_ttm: 10.8 }] };
+    return new Response(JSON.stringify({ code: 0, message: 'success', request_id: 'live-request', data }), { headers: { 'content-type': 'application/json' } });
+  };
+  try {
+    const request = new Request('https://example.test/api/research?thscode=000333.SZ&name=%E7%BE%8E%E7%9A%84%E9%9B%86%E5%9B%A2');
+    const response = await worker.fetch(request, { FUYAO_API_KEY: 'secret-key' }, {});
+    const body = await response.json();
+    assert.equal(response.status, 200);
+    assert.deepEqual(body.company, { name: '美的集团', thscode: '000333.SZ' });
+    assert.equal(body.modules.valuation.status, 'ok');
+    assert.equal(body.modules.context.status, 'unavailable');
+    assert.equal(JSON.stringify(body).includes('secret-key'), false);
+  } finally {
+    globalThis.fetch = previousFetch;
+  }
+});

@@ -19,6 +19,14 @@ export function validateThscode(value) {
   return normalized;
 }
 
+function validateThscodes(values) {
+  const input = Array.isArray(values) ? values : String(values ?? '').split(',');
+  const normalized = [...new Set(input.map(validateThscode))];
+  if (!normalized.length) throw new FuyaoError('thscodes are required', { code: 'invalid_input', status: 400 });
+  if (normalized.length > 100) throw new FuyaoError('thscodes accepts at most 100 codes', { code: 'invalid_input', status: 400 });
+  return normalized.join(',');
+}
+
 const businessCodes = {
   2001: ['auth_invalid', 503],
   2003: ['permission_denied', 403],
@@ -99,6 +107,9 @@ export function createFuyaoClient(fetchFn, apiKey) {
         throw new FuyaoError('report must match yyyy-[1-4]', { code: 'invalid_input', status: 400 });
       }
       return get('/api/a-share/financials/indicators', { thscode: validateThscode(thscode), report });
+    },
+    valuations(thscodes) {
+      return get('/api/a-share/valuations/snapshot', { thscodes: validateThscodes(thscodes) });
     },
   };
 }

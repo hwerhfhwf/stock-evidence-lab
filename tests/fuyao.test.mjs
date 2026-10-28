@@ -31,6 +31,20 @@ test('client sends API key only in the header and constrains endpoint paths', as
   assert.doesNotMatch(calls[0].url, /secret-key/);
 });
 
+test('client requests the documented Fuyao valuation snapshot for canonical A-share codes', async () => {
+  const calls = [];
+  const fetchFn = async (url, init) => {
+    calls.push({ url, init });
+    return new Response(JSON.stringify({ code: 0, message: 'success', request_id: 'valuation-ok', data: { item: [] } }), { headers: { 'content-type': 'application/json' } });
+  };
+  const client = createFuyaoClient(fetchFn, 'secret-key');
+  await client.valuations(['002594.sz', '600519.SH']);
+  assert.match(calls[0].url, /a-share\/valuations\/snapshot\?thscodes=002594.SZ%2C600519.SH/);
+  assert.equal(calls[0].init.headers['X-api-key'], 'secret-key');
+  assert.doesNotMatch(calls[0].url, /secret-key/);
+  assert.throws(() => client.valuations(['not-a-code']), /thscode/);
+});
+
 test('client fails closed when runtime key is absent', () => {
   assert.throws(() => createFuyaoClient(fetch, ''), /FUYAO_API_KEY/);
 });
