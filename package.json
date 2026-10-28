@@ -4,7 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --test",
-    "serve": "python -m http.server 4173 -d dist"
+    "prepare:ui": "node scripts/build-worker.mjs",
+    "test": "node scripts/build-worker.mjs && node --test",
+    "build": "node scripts/build-worker.mjs && node scripts/validate-worker.mjs",
+    "serve": "node scripts/build-worker.mjs && node scripts/serve-worker.mjs"
   }
 }

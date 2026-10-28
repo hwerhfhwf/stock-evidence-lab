@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="Stock Evidence Lab — 基于真实市场数据、结论可回溯的 A 股研究工作台">
+  <title>Stock Evidence Lab · Live Research</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/"><span class="brand-mark"><i></i><i></i><i></i></span><span>Stock Evidence Lab</span><b>LIVE</b></a>
+    <div class="top-status"><span id="freshness" class="freshness"><i></i>实时数据正在连接</span><button id="method-button" class="ghost">数据方法</button></div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="hero-copy"><p class="eyebrow">EVIDENCE-FIRST EQUITY RESEARCH</p><h1>先看证据，<em>再形成判断。</em></h1><p>搜索任意 A 股，将实时行情、前复权趋势、三张财务报表和确定性计算组织成可继续研究的证据链。</p></div>
+      <div class="search-shell">
+        <label for="stock-search">研究标的</label>
+        <div class="search-box"><span>⌕</span><input id="stock-search" autocomplete="off" placeholder="输入公司名、代码或 thscode" value="美的集团"><button id="search-button">搜索</button></div>
+        <div id="search-results" class="search-results" hidden></div>
+        <div class="quick-stocks"><button data-code="000333.SZ" data-name="美的集团">美的集团</button><button data-code="600519.SH" data-name="贵州茅台">贵州茅台</button><button data-code="000651.SZ" data-name="格力电器">格力电器</button><button data-code="600690.SH" data-name="海尔智家">海尔智家</button></div>
+      </div>
+    </section>
+
+    <section class="company-bar">
+      <div class="company-id"><div id="company-avatar" class="avatar">美</div><div><p id="company-name">美的集团</p><span id="company-code">000333.SZ</span></div></div>
+      <div class="quote"><span>最新价</span><strong id="last-price">--</strong><b id="price-change">等待数据</b></div>
+      <div class="quote"><span>成交额</span><strong id="turnover">--</strong><b>实时快照</b></div>
+      <div class="quote"><span>60日收益</span><strong id="return-60">--</strong><b>前复权</b></div>
+      <div class="quote"><span>60日最大回撤</span><strong id="drawdown-60">--</strong><b>确定性计算</b></div>
+      <button id="refresh-button" class="refresh">↻ 刷新</button>
+    </section>
+
+    <section id="global-status" class="global-status" aria-live="polite"><span class="spinner"></span><div><strong>正在建立证据链</strong><p>并发获取行情、历史 K 线、三张报表与财务指标…</p></div></section>
+
+    <nav class="view-tabs" aria-label="研究视图">
+      <button class="active" data-view="overview">诊断总览</button><button data-view="market">行情证据</button><button data-view="financial">财务证据</button><button data-view="lineage">数据血缘</button>
+    </nav>
+
+    <section id="overview-view" class="view active">
+      <div class="section-heading"><div><p class="eyebrow">DIAGNOSTIC MAP</p><h2>证据指向哪里</h2><span>事实由 API 与确定性计算生成；推断不替代原始数据。</span></div><div id="evidence-counts" class="evidence-counts"></div></div>
+      <div id="diagnostic-grid" class="diagnostic-grid"></div>
+    </section>
+
+    <section id="market-view" class="view">
+      <div class="section-heading"><div><p class="eyebrow">MARKET EVIDENCE</p><h2>价格、趋势与回撤</h2><span>约 250 个交易日前复权日 K；仅描述历史特征，不预测未来。</span></div><div class="range-switch"><button class="active" data-range="60">60D</button><button data-range="120">120D</button><button data-range="250">1Y</button></div></div>
+      <article id="market-panel" class="panel chart-panel"><div class="panel-status skeleton-block"></div><svg id="price-chart" role="img" aria-label="前复权价格趋势图" viewBox="0 0 900 360"></svg><div id="chart-tooltip" class="chart-tooltip" hidden></div></article>
+      <div id="market-metrics" class="metric-grid"></div>
+    </section>
+
+    <section id="financial-view" class="view">
+      <div class="section-heading"><div><p class="eyebrow">FINANCIAL EVIDENCE</p><h2>三表与五类能力</h2><span>最近八期累计口径；按报告期对齐，不把累计值当单季值。</span></div></div>
+      <article id="financial-panel" class="panel"><div class="panel-status skeleton-block"></div><div id="financial-table" class="financial-table"></div></article>
+      <div id="indicator-groups" class="indicator-groups"></div>
+    </section>
+
+    <section id="lineage-view" class="view">
+      <div class="section-heading"><div><p class="eyebrow">DATA LINEAGE</p><h2>每条结论从哪里来</h2><span>保留模块状态、数据时点和上游 request ID，便于复核与排障。</span></div></div>
+      <div id="lineage-grid" class="lineage-grid"></div>
+      <article class="boundary-card"><h3>能力边界</h3><p>新闻公告原文、资金流和高频动向当前不属于公开外部能力，因此保持未知，而不是由模型补写。估值接口未确认契约前同样不会生成“贵/便宜”判断。</p></article>
+    </section>
+  </main>
+
+  <footer><div><strong>Stock Evidence Lab</strong><span>真实数据 · 可审计计算 · 模块级降级</span></div><p>数据源：同花顺扶摇金融数据 API。仅供研究辅助，不构成投资建议。</p></footer>
+
+  <div id="evidence-drawer" class="drawer" aria-hidden="true"><button class="backdrop" data-close="evidence-drawer" aria-label="关闭"></button><article><button class="close" data-close="evidence-drawer">×</button><div id="drawer-content"></div></article></div>
+  <div id="method-modal" class="drawer" aria-hidden="true"><button class="backdrop" data-close="method-modal" aria-label="关闭"></button><article><button class="close" data-close="method-modal">×</button><p class="eyebrow">METHOD & BOUNDARIES</p><h2>事实、计算与解释分层</h2><div class="method-list"><div><b>01</b><h3>数据事实</h3><p>服务端调用扶摇，保留业务状态、时点与请求 ID；Key 永不进入浏览器。</p></div><div><b>02</b><h3>确定性计算</h3><p>区间收益、均线、回撤和财务比率由可测试函数计算。</p></div><div><b>03</b><h3>分析推断</h3><p>只把可验证事实组合成中立解释，并把相反证据和未知项一起呈现。</p></div></div></article></div>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>
