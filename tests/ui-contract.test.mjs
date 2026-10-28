@@ -33,3 +33,20 @@ test('dense layout remains keyboard and small-screen operable', () => {
   }
   assert.match(css, /@media \(max-width: 640px\)[\s\S]*?(input|textarea)[^{]*\{[^}]*font-size:\s*16px/);
 });
+
+test('first viewport follows the approved research hierarchy instead of equal cards', () => {
+  for (const id of ['quote-strip', 'business-hero', 'composition-chart', 'operating-chart', 'operating-kpis', 'market-chart', 'valuation-strip', 'module-status']) {
+    assert.ok(delivery.includes(`id="${id}"`) || delivery.includes(`id='${id}'`) || delivery.includes(`id=${id}`), id);
+  }
+  assert.match(css, /--text-sm:\s*12px/);
+  assert.match(css, /--text-md:\s*14px/);
+  assert.match(css, /--text-lg:\s*16px/);
+  assert.match(css, /grid-template-columns:\s*repeat\(12,/);
+});
+
+test('charts are accessible svg views with direct labels and explicit unavailable states', () => {
+  for (const token of ['renderDonutChart', 'renderOperatingChart', 'renderMarketChart', 'role="img"', '暂无数据']) {
+    assert.ok(app.includes(token), token);
+  }
+  assert.match(app, /aria-label=/);
+});

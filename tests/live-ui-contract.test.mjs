@@ -29,3 +29,10 @@ test('worker exposes the live browser data modules as same-origin scripts', () =
   assert.match(worker, /dataClientScript/);
   assert.match(worker, /researchViewScript/);
 });
+
+test('browser orchestrates live search and module-level research rendering', () => {
+  for (const token of ['createResearchClient', 'normalizeResearchView', 'client.search', 'client.research', 'sourceState', 'module-status']) {
+    assert.ok(app.includes(token), token);
+  }
+  for (const token of ['aria-busy', 'role="status"', 'search-results']) assert.ok(html.includes(token), token);
+});

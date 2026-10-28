@@ -48,5 +48,7 @@ test('normalizeResearchView labels the BYD disclosure fallback and never present
   assert.equal(view.quote.lastPrice, null);
   assert.equal(view.market.status, 'unavailable');
   assert.equal(view.revenueComposition.items.length, 3);
+  assert.equal(Number(view.indicators.values.calculate_operating_income_yoy_growth_ratio.toFixed(2)), -7.13);
+  assert.equal(Number(view.indicators.values.calculate_parent_holder_net_profit_yoy_growth_ratio.toFixed(2)), -20.54);
 });
 

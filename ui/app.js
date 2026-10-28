@@ -1,272 +1,397 @@
 import { buildWorkbench } from '/diagnosis-model.js';
-import {
-  BYD_SNAPSHOT,
-  createBydDemoBundle,
-  deriveBydResearch,
-  factsForMode,
-} from '/finscope-data.js';
+import { BYD_SNAPSHOT, createBydDemoBundle, deriveBydResearch, factsForMode } from '/finscope-data.js';
+import { createResearchClient, ResearchClientError } from '/data-client.js';
+import { normalizeResearchView } from '/research-view.js';
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
+const client = createResearchClient(globalThis.fetch.bind(globalThis));
 const YI = 100_000_000;
-const esc = (value) => String(value ?? '').replace(/[&<>"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[char]));
-const yi = (value, digits = 2) => `${(Number(value) / YI).toLocaleString('zh-CN', { minimumFractionDigits: digits, maximumFractionDigits: digits })} 亿元`;
-const pct = (value, digits = 2) => `${Number(value) > 0 ? '+' : ''}${Number(value).toFixed(digits)}%`;
-const growth = (current, prior) => ((current / prior) - 1) * 100;
-const signedYi = (value) => `${Number(value) > 0 ? '+' : ''}${(Number(value) / YI).toFixed(2)} 亿元`;
+const chartColors = ['#35a9e8', '#42c7a8', '#efbd68', '#a995ef'];
+const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
+const number = value => value === null || value === undefined || value === '' || !Number.isFinite(Number(value)) ? null : Number(value);
+const isByd = code => String(code).toUpperCase() === BYD_SNAPSHOT.meta.symbol;
 
 const state = {
-  mode: 'simple',
-  period: 'half',
-  cashView: 'structure',
-  research: deriveBydResearch(BYD_SNAPSHOT),
+  company: { name: '比亚迪', thscode: '002594.SZ', companyType: 'manufacturing' },
   bundle: createBydDemoBundle(BYD_SNAPSHOT),
-  workbench: null,
+  view: normalizeResearchView(null, { name: '比亚迪', thscode: '002594.SZ' }, BYD_SNAPSHOT),
+  research: deriveBydResearch(BYD_SNAPSHOT),
+  mode: 'simple',
   opener: null,
+  searchItems: [],
 };
-state.workbench = buildWorkbench(state.bundle, { name: '比亚迪', thscode: '002594.SZ', companyType: 'manufacturing' }, $('#research-question').value);
 
-const evidenceById = new Map(state.research.evidence.map((item) => [item.id, item]));
-const sourceById = new Map(BYD_SNAPSHOT.sources.map((item) => [item.id, item]));
-const claimById = new Map(state.research.claims.map((item) => [item.id, item]));
+const evidenceById = new Map(state.research.evidence.map(item => [item.id, item]));
+const sourceById = new Map(BYD_SNAPSHOT.sources.map(item => [item.id, item]));
+
+function formatPrice(value) {
+  const n = number(value);
+  return n === null ? '—' : n.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function formatPct(value, digits = 2) {
+  const n = number(value);
+  return n === null ? '暂无数据' : `${n > 0 ? '+' : ''}${n.toFixed(digits)}%`;
+}
+
+function formatYi(value, digits = 1) {
+  const n = number(value);
+  return n === null ? '暂无数据' : `${(n / YI).toLocaleString('zh-CN', { minimumFractionDigits: digits, maximumFractionDigits: digits })} 亿`;
+}
+
+function formatTurnover(value) {
+  const n = number(value);
+  if (n === null) return '—';
+  if (Math.abs(n) >= YI) return `${(n / YI).toFixed(1)} 亿`;
+  if (Math.abs(n) >= 10_000) return `${(n / 10_000).toFixed(1)} 万`;
+  return n.toLocaleString('zh-CN');
+}
+
+function formatMetric(value, suffix = '', digits = 2) {
+  const n = number(value);
+  return n === null ? '暂无数据' : `${n.toFixed(digits)}${suffix}`;
+}
+
+function formatDate(value, withTime = false) {
+  if (!value) return '—';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+  return new Intl.DateTimeFormat('zh-CN', withTime ? { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false } : { year: 'numeric', month: '2-digit', day: '2-digit' }).format(date);
+}
+
+function reportLabel(row, fallback = '') {
+  if (row?.label) return row.label;
+  if (row?.fiscal_year && row?.fiscal_period) return `${row.fiscal_year}${row.fiscal_period}`;
+  const value = number(row?.period_end_ms ?? row?.period_end ?? row?.dateMs);
+  return value === null ? fallback : new Date(value).toISOString().slice(0, 10);
+}
+
+function moduleError(module) {
+  return module?.errors?.[0]?.message || '该数据暂不可用';
+}
 
 function showToast(message) {
   const toast = $('#toast');
   toast.textContent = message;
   toast.hidden = false;
-  window.clearTimeout(showToast.timer);
-  showToast.timer = window.setTimeout(() => { toast.hidden = true; }, 2800);
+  clearTimeout(showToast.timer);
+  showToast.timer = setTimeout(() => { toast.hidden = true; }, 3000);
 }
 
-function statusLabel(status) {
-  return ({ fact: '客观事实', inference: '分析推断', unverified: '暂无法验证' })[status] || status;
+function emptyState(title, detail = '暂无数据') {
+  return `<div class="empty-state"><strong>${esc(title)}</strong><span>${esc(detail)}</span></div>`;
 }
 
-function directionLabel(direction) {
-  return ({ positive: '支持', negative: '反向', conflicting: '方向分化', missing: '证据缺口' })[direction] || direction;
+function renderModuleStatus() {
+  const status = $('#module-status');
+  const modules = state.bundle?.modules ?? {};
+  const available = ['market', 'financials', 'indicators', 'valuation'].filter(key => ['ok', 'partial'].includes(modules[key]?.status)).length;
+  status.className = `module-status ${state.view.sourceState.mode === 'live' ? 'is-live' : 'is-fallback'}`;
+  status.innerHTML = state.view.sourceState.mode === 'live'
+    ? `<span class="pulse" aria-hidden="true"></span><strong>扶摇实时数据</strong><span>${available}/4 个核心模块可用${state.view.context.status === 'unavailable' ? ' · iFinD 增强未配置' : ''}</span>`
+    : '<span class="pulse" aria-hidden="true"></span><strong>公开披露快照</strong><span>实时服务不可用；行情与估值不展示</span>';
 }
 
-function setMode(mode, options = {}) {
-  state.mode = mode === 'professional' ? 'professional' : 'simple';
-  factsForMode(state.research, state.mode);
-  document.body.classList.toggle('mode-professional', state.mode === 'professional');
-  $$('[data-mode]').forEach((button) => button.setAttribute('aria-pressed', String(button.dataset.mode === state.mode)));
-  if (!options.silent) showToast(state.mode === 'professional' ? '已展开财务原值表' : '已收起财务原值表');
+function renderQuote() {
+  const { company, quote, sourceState } = state.view;
+  $('#company-name').textContent = company.name;
+  $('#company-code').textContent = company.thscode;
+  $('#side-company-name').textContent = company.name;
+  $('#side-company-code').textContent = company.thscode;
+  $('.company-mark').textContent = isByd(company.thscode) ? 'BYD' : company.name.slice(0, 2).toUpperCase();
+  $('#company-market').textContent = company.thscode.endsWith('.SH') ? '上交所 · A 股' : company.thscode.endsWith('.BJ') ? '北交所 · A 股' : '深交所 · A 股';
+  $('#quote-price').textContent = formatPrice(quote.lastPrice);
+  const change = $('#quote-change');
+  change.textContent = formatPct(quote.changePct);
+  change.className = number(quote.changePct) > 0 ? 'up' : number(quote.changePct) < 0 ? 'down' : '';
+  $('#quote-turnover').textContent = formatTurnover(quote.turnover);
+  $('#data-time').textContent = formatDate(sourceState.generatedAt, true);
+  $('#source-badge').textContent = sourceState.label;
 }
 
-function renderSegments() {
-  const total = BYD_SNAPSHOT.segments.reduce((sum, segment) => sum + segment.revenue2025, 0);
-  const shares = BYD_SNAPSHOT.segments.map((segment) => segment.revenue2025 / total * 100);
-  $('#segment-chart').innerHTML = `
-    <div class="segment-bar" role="img" aria-label="汽车及相关产品 ${shares[0].toFixed(2)}%，手机部件及组装 ${shares[1].toFixed(2)}%，其他 ${shares[2].toFixed(2)}%">
-      ${shares.map((share) => `<span style="width:${share}%"></span>`).join('')}
-    </div>
-    <div class="segment-legend">
-      ${BYD_SNAPSHOT.segments.slice(0, 2).map((segment, index) => `<div><i></i><span>${esc(segment.name)}</span><strong>${shares[index].toFixed(2)}%</strong></div>`).join('')}
-    </div>`;
+function renderBusiness() {
+  const byd = isByd(state.view.company.thscode);
+  $('#business-summary').textContent = byd
+    ? '以新能源汽车为核心，业务延伸至动力电池、储能、光伏与电子制造；汽车及相关产品是主要收入来源。'
+    : `${state.view.company.name}的业务构成数据尚未接入当前数据包，财务与行情模块仍可独立研究。`;
+  $('#business-scope').textContent = byd ? '集团合并' : '财务报表口径';
+  $('#business-lines').textContent = byd ? '汽车 · 电子制造' : '业务构成待披露数据';
+  $('#business-listing').textContent = state.view.company.thscode.endsWith('.SH') ? '上交所 A 股' : state.view.company.thscode.endsWith('.BJ') ? '北交所 A 股' : '深交所 A 股';
+  $('#composition-period').textContent = state.view.revenueComposition.period ? `${state.view.revenueComposition.period} 年` : '暂无可比口径';
+  $('#composition-note').textContent = state.view.revenueComposition.status === 'ok' ? '公开披露 · 按集团分产品收入' : '当前数据包未包含分部收入';
 }
 
-function periodView(period) {
-  if (period === 'annual') {
-    const prior = BYD_SNAPSHOT.annual.find((row) => row.year === 2024);
-    const current = BYD_SNAPSHOT.annual.find((row) => row.year === 2025);
-    return {
-      label: '2024 / 2025 · 年度口径 · 同比变化',
-      priorLabel: '2024', currentLabel: '2025', prior, current,
-      refs: 'annual-revenue,annual-parent-profit,annual-cfo',
-      values: [
-        { label: '营业收入', value: state.research.metrics.annualRevenueGrowthPct, amount: current.revenue },
-        { label: '归母净利润', value: state.research.metrics.annualParentProfitGrowthPct, amount: current.parentProfit },
-        { label: '经营净现金', value: state.research.metrics.annualCfoGrowthPct, amount: current.cfo },
-      ],
-      claim: 'annual-direction',
-      conclusion: '2025 年收入同比增长 3.46%，归母净利润下降 18.96%，经营净现金下降 55.69%。',
-    };
-  }
-  if (period === 'q1') {
-    const prior = BYD_SNAPSHOT.q1[2025];
-    const current = BYD_SNAPSHOT.q1[2026];
-    return {
-      label: '2025Q1 / 2026Q1 · 累计口径 · 同比变化',
-      priorLabel: '2025Q1', currentLabel: '2026Q1', prior, current,
-      refs: 'q1-revenue,q1-parent-profit,q1-cfo',
-      values: [
-        { label: '营业收入', value: growth(current.revenue, prior.revenue), amount: current.revenue },
-        { label: '归母净利润', value: growth(current.parentProfit, prior.parentProfit), amount: current.parentProfit },
-        { label: '经营净现金', value: growth(current.cfo, prior.cfo), amount: current.cfo },
-      ],
-      claim: null,
-      conclusion: '2026Q1 收入、归母净利润与经营净现金均低于上年同期。',
-    };
-  }
-  const prior = BYD_SNAPSHOT.half[2025];
-  const current = BYD_SNAPSHOT.half[2026];
-  return {
-    label: '2025H1 / 2026H1 · 累计口径 · 同比变化',
-    priorLabel: '2025H1', currentLabel: '2026H1', prior, current,
-    refs: 'h1-revenue,h1-parent-profit,h1-cfo',
-    values: [
-      { label: '营业收入', value: state.research.metrics.h1RevenueGrowthPct, amount: current.revenue },
-      { label: '归母净利润', value: state.research.metrics.h1ParentProfitGrowthPct, amount: current.parentProfit },
-      { label: '经营净现金', value: state.research.metrics.h1OperatingCashGrowthPct, amount: current.cfo },
-    ],
-    claim: 'h1-divergence',
-    conclusion: '2026H1 收入与归母净利润下降，经营净现金同比增加 17.28%。',
-  };
+export function renderDonutChart(composition) {
+  if (composition?.status !== 'ok' || !composition.items?.length) return emptyState('收入构成暂不可用', '需要公司分部收入披露');
+  const items = composition.items.filter(item => number(item.share) !== null && number(item.amount) !== null);
+  const circumference = 2 * Math.PI * 52;
+  let cumulative = 0;
+  const arcs = items.map((item, index) => {
+    const share = Math.max(0, number(item.share));
+    const length = circumference * share / 100;
+    const arc = `<circle cx="80" cy="80" r="52" fill="none" stroke="${chartColors[index % chartColors.length]}" stroke-width="18" stroke-dasharray="${length} ${circumference - length}" stroke-dashoffset="${-circumference * cumulative / 100}" transform="rotate(-90 80 80)"/>`;
+    cumulative += share;
+    return arc;
+  }).join('');
+  const total = items.reduce((sum, item) => sum + number(item.amount), 0);
+  const aria = items.map(item => `${item.name}${number(item.share).toFixed(1)}%`).join('，');
+  return `<div class="donut-layout"><svg class="donut-svg" viewBox="0 0 160 160" role="img" aria-label="收入构成：${esc(aria)}"><circle cx="80" cy="80" r="52" fill="none" stroke="#17364a" stroke-width="18"/>${arcs}<text class="donut-total" x="80" y="77" text-anchor="middle">${esc(formatYi(total, 0))}</text><text class="donut-sub" x="80" y="97" text-anchor="middle">营业收入</text></svg><div class="donut-legend">${items.map((item, index) => `<div><i style="background:${chartColors[index % chartColors.length]}"></i><span>${esc(item.name)}</span><strong>${number(item.share).toFixed(1)}%</strong></div>`).join('')}</div></div>`;
 }
 
-function changeChart(items) {
-  const width = 520;
-  const height = 205;
-  const plotTop = 31;
-  const plotBottom = 158;
-  const min = Math.min(-10, ...items.map((item) => item.value)) - 5;
-  const max = Math.max(10, ...items.map((item) => item.value)) + 5;
-  const y = (value) => plotTop + ((max - value) / (max - min)) * (plotBottom - plotTop);
-  const zeroY = y(0);
-  const barWidth = 72;
-  const gap = 80;
-  return `<svg class="chart-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="收入、归母净利润和经营净现金同比变化">
-    <line class="zero" x1="24" x2="500" y1="${zeroY}" y2="${zeroY}" />
-    <text class="axis" x="4" y="${zeroY + 3}">0%</text>
-    ${items.map((item, index) => {
-      const x = 58 + index * (barWidth + gap);
-      const valueY = y(item.value);
-      const top = Math.min(zeroY, valueY);
-      const barHeight = Math.max(2, Math.abs(zeroY - valueY));
-      const color = item.value >= 0 ? 'var(--green)' : 'var(--red)';
-      const marker = item.value >= 0 ? '▲' : '▼';
-      return `<rect x="${x}" y="${top}" width="${barWidth}" height="${barHeight}" rx="3" fill="${color}" opacity=".78" />
-        <text class="value" x="${x + barWidth / 2}" y="${item.value >= 0 ? top - 10 : top + barHeight + 18}" text-anchor="middle">${marker} ${pct(item.value)}</text>
-        <text class="label" x="${x + barWidth / 2}" y="185" text-anchor="middle">${item.label}</text>`;
+function operatingSeries() {
+  const quarterRows = state.view.financials.quarters?.filter(row => number(row.revenue) !== null || number(row.parentProfit) !== null) ?? [];
+  if (quarterRows.length) return quarterRows.slice(-8);
+  return (state.view.financials.annualSeries ?? []).slice(-8);
+}
+
+export function renderOperatingChart(rows) {
+  if (!rows?.length) return emptyState('经营趋势暂不可用', moduleError(state.bundle?.modules?.financials));
+  const width = 760;
+  const height = 225;
+  const left = 50;
+  const right = 28;
+  const top = 22;
+  const bottom = 43;
+  const plotWidth = width - left - right;
+  const plotHeight = height - top - bottom;
+  const revenues = rows.map(row => number(row.revenue));
+  const profits = rows.map(row => number(row.parentProfit));
+  const maxRevenue = Math.max(1, ...revenues.filter(value => value !== null).map(Math.abs));
+  const profitValues = profits.filter(value => value !== null);
+  const profitMin = Math.min(0, ...profitValues);
+  const profitMax = Math.max(1, ...profitValues);
+  const step = plotWidth / Math.max(1, rows.length);
+  const barWidth = Math.min(42, step * .48);
+  const revenueY = value => top + plotHeight - Math.abs(value) / maxRevenue * plotHeight;
+  const profitY = value => top + (profitMax - value) / Math.max(1, profitMax - profitMin) * plotHeight;
+  const points = rows.map((row, index) => number(row.parentProfit) === null ? null : `${left + step * (index + .5)},${profitY(number(row.parentProfit))}`).filter(Boolean).join(' ');
+  return `<svg class="chart-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="营业收入柱状图与归母净利润折线图，共 ${rows.length} 个报告期">
+    <line class="grid" x1="${left}" x2="${width - right}" y1="${top + plotHeight}" y2="${top + plotHeight}"/>
+    <line class="grid" x1="${left}" x2="${width - right}" y1="${top + plotHeight / 2}" y2="${top + plotHeight / 2}"/>
+    <text class="axis" x="${left}" y="14">金额 · 亿元</text>
+    ${rows.map((row, index) => {
+      const revenue = number(row.revenue);
+      const x = left + step * (index + .5);
+      const y = revenue === null ? top + plotHeight : revenueY(revenue);
+      const h = revenue === null ? 0 : top + plotHeight - y;
+      const label = reportLabel(row, String(index + 1)).replace(/^20/, '');
+      return `<rect class="revenue" x="${x - barWidth / 2}" y="${y}" width="${barWidth}" height="${h}" rx="3" opacity=".82"/><text class="label" x="${x}" y="${height - 18}" text-anchor="middle">${esc(label)}</text>`;
     }).join('')}
+    ${points ? `<polyline class="profit-line" points="${points}"/>` : ''}
+    ${rows.map((row, index) => number(row.parentProfit) === null ? '' : `<circle cx="${left + step * (index + .5)}" cy="${profitY(number(row.parentProfit))}" r="3.5" fill="#42c7a8"/>`).join('')}
+    <g transform="translate(${width - 188} 10)"><rect width="10" height="10" rx="2" class="revenue"/><text class="axis" x="15" y="10">营业收入</text><line x1="86" x2="105" y1="5" y2="5" class="profit-line"/><text class="axis" x="112" y="10">归母净利润</text></g>
   </svg>`;
+}
+
+function indicatorValue(id) {
+  return number(state.view.indicators.values?.[id]);
 }
 
 function renderOperating() {
-  const view = periodView(state.period);
-  $('#operating-chart').innerHTML = changeChart(view.values);
-  $('#operating-period').textContent = view.label;
-  const sourceButton = $('#operating-period').nextElementSibling;
-  sourceButton.dataset.evidence = view.refs;
-  $('#operating-metric').innerHTML = view.values.map((item) => `<div><span>${esc(item.label)}</span><strong class="${item.value >= 0 ? 'up' : 'down'}">${pct(item.value)}</strong><small>${yi(item.amount)}</small></div>`).join('');
-  const conclusion = $('#operating-conclusion');
-  conclusion.dataset.claim = view.claim || '';
-  conclusion.dataset.evidence = view.claim ? '' : view.refs;
-  conclusion.innerHTML = `<span class="status-chip ${view.values.some((item) => item.value >= 0) && view.values.some((item) => item.value < 0) ? 'conflicting' : 'negative'}">${view.values.some((item) => item.value >= 0) && view.values.some((item) => item.value < 0) ? '方向分化' : '同比下降'}</span><strong>${esc(view.conclusion)}</strong><span aria-hidden="true">↗</span>`;
-  conclusion.setAttribute('aria-expanded', 'false');
-  $('#operating-table').innerHTML = `<table><thead><tr><th>指标</th><th>${view.priorLabel}</th><th>${view.currentLabel}</th><th>同比</th></tr></thead><tbody>${view.values.map((item) => {
-    const key = item.label === '营业收入' ? 'revenue' : item.label === '归母净利润' ? 'parentProfit' : 'cfo';
-    return `<tr><td>${item.label}</td><td>${yi(view.prior[key])}</td><td>${yi(view.current[key])}</td><td>${pct(item.value)}</td></tr>`;
-  }).join('')}</tbody></table>`;
+  const rows = operatingSeries();
+  $('#operating-chart').innerHTML = renderOperatingChart(rows);
+  const revenueGrowth = indicatorValue('calculate_operating_income_yoy_growth_ratio');
+  const profitGrowth = indicatorValue('calculate_parent_holder_net_profit_yoy_growth_ratio');
+  const cashContent = indicatorValue('net_profit_cash_content');
+  const debtRatio = indicatorValue('assets_debt_ratio');
+  const kpis = [
+    { label: '营业收入同比', value: formatPct(revenueGrowth), raw: revenueGrowth, note: state.view.indicators.report || '最新报告期' },
+    { label: '归母净利润同比', value: formatPct(profitGrowth), raw: profitGrowth, note: state.view.indicators.report || '最新报告期' },
+    { label: '净利润现金含量', value: formatMetric(cashContent, '%', 1), raw: cashContent, note: '经营现金 / 净利润' },
+    { label: '资产负债率', value: formatMetric(debtRatio, '%', 1), raw: debtRatio, note: '最新财务指标' },
+  ];
+  $('#operating-kpis').innerHTML = kpis.map(item => `<div class="kpi-card"><span>${item.label}</span><strong class="${number(item.raw) > 0 && /同比/.test(item.label) ? 'up' : number(item.raw) < 0 ? 'down' : ''}">${item.value}</strong><small>${esc(item.note)}</small></div>`).join('');
+  $('#operating-period').textContent = rows.length ? `${reportLabel(rows[0])} — ${reportLabel(rows.at(-1))} · ${state.view.financials.quarters?.length ? '单季换算' : '年度口径'}` : '报告期数据不可用';
+  const insight = $('#operating-insight');
+  if (revenueGrowth !== null && profitGrowth !== null) {
+    const gap = profitGrowth - revenueGrowth;
+    insight.innerHTML = `<strong>利润与收入增速差</strong><span>${profitGrowth.toFixed(1)}% − ${revenueGrowth.toFixed(1)}% = <b class="${gap < 0 ? 'down' : 'up'}">${gap > 0 ? '+' : ''}${gap.toFixed(1)} 个百分点</b></span>`;
+  } else {
+    insight.textContent = rows.length ? '图中金额可核对；同比财务指标暂不完整。' : '财务报表模块暂不可用。';
+  }
 }
 
-function renderProfit() {
-  const a2024 = BYD_SNAPSHOT.annual.find((row) => row.year === 2024);
-  const a2025 = BYD_SNAPSHOT.annual.find((row) => row.year === 2025);
-  const grossDelta = (a2025.revenue - a2025.cost) - (a2024.revenue - a2024.cost);
-  const parentDelta = a2025.parentProfit - a2024.parentProfit;
-  const otherDelta = parentDelta - grossDelta;
-  const rows = [
-    { label: '毛利变化', value: grossDelta, color: 'var(--red)' },
-    { label: '其他损益净影响', value: otherDelta, color: 'var(--green)' },
-    { label: '归母利润变化', value: parentDelta, color: 'var(--red)' },
-  ];
-  const max = Math.max(...rows.map((row) => Math.abs(row.value)));
-  $('#profit-chart').innerHTML = `<svg class="chart-svg" viewBox="0 0 430 174" role="img" aria-label="2025 年利润变化分解">
-    ${rows.map((row, index) => {
-      const y = 25 + index * 50;
-      const bar = Math.abs(row.value) / max * 215;
-      return `<text class="label" x="8" y="${y + 11}">${row.label}</text><line class="grid" x1="130" x2="365" y1="${y + 7}" y2="${y + 7}"/><rect x="130" y="${y}" width="${bar}" height="14" rx="3" fill="${row.color}" opacity=".78"/><text class="value" x="${Math.min(415, 140 + bar)}" y="${y + 11}">${signedYi(row.value)}</text>`;
-    }).join('')}
-    <text class="axis" x="8" y="170">其他损益为毛利变化与归母利润变化之间的合计差额</text>
-  </svg>`;
+function cashRows() {
+  const live = state.view.financials.cashflow ?? [];
+  if (live.length) return [...live].sort((a, b) => number(a.period_end_ms ?? a.period_end) - number(b.period_end_ms ?? b.period_end)).slice(-6).map(row => ({ label: reportLabel(row), value: number(row.act_cash_flow_net) }));
+  return (state.view.financials.annualSeries ?? []).slice(-6).map(row => ({ label: row.label, value: number(row.cfo) }));
 }
 
-function renderCash() {
-  const rows = [
-    { label: '经营净现金', a: BYD_SNAPSHOT.cashFlow[2024].cfo, b: BYD_SNAPSHOT.cashFlow[2025].cfo },
-    { label: '投资净现金', a: BYD_SNAPSHOT.cashFlow[2024].investing, b: BYD_SNAPSHOT.cashFlow[2025].investing },
-    { label: '筹资净现金', a: BYD_SNAPSHOT.cashFlow[2024].financing, b: BYD_SNAPSHOT.cashFlow[2025].financing },
-  ];
-  const max = Math.max(...rows.flatMap((row) => [Math.abs(row.a), Math.abs(row.b)]));
-  const chartRows = state.cashView === 'structure' ? rows : rows.map((row) => ({ label: row.label, a: row.b - row.a, b: row.b }));
-  $('#cash-chart').innerHTML = `<div class="cash-list">${chartRows.map((row) => `<div class="cash-row"><span>${row.label}</span><div class="dual-bar" aria-label="${state.cashView === 'structure' ? `2024 ${yi(row.a)}，2025 ${yi(row.b)}` : `同比变化 ${yi(row.a)}，2025 ${yi(row.b)}`}"><i style="width:${Math.abs(row.a) / max * 100}%"></i><i style="width:${Math.abs(row.b) / max * 100}%"></i></div><strong>${state.cashView === 'structure' ? yi(row.b, 1) : signedYi(row.a)}</strong></div>`).join('')}</div>`;
+function renderCashChart(rows) {
+  if (!rows.length || !rows.some(row => row.value !== null)) return emptyState('经营现金流暂不可用');
+  const width = 690;
+  const height = 195;
+  const left = 56;
+  const bottom = 40;
+  const mid = 86;
+  const max = Math.max(1, ...rows.map(row => Math.abs(row.value ?? 0)));
+  const step = (width - left - 18) / rows.length;
+  const barWidth = Math.min(48, step * .5);
+  return `<svg class="chart-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="最近 ${rows.length} 个报告期经营活动现金流净额"><line class="grid" x1="${left}" x2="${width - 18}" y1="${mid}" y2="${mid}"/><text class="axis" x="4" y="${mid + 4}">0</text>${rows.map((row, index) => {
+    const value = row.value;
+    const size = value === null ? 0 : Math.abs(value) / max * 68;
+    const y = value !== null && value >= 0 ? mid - size : mid;
+    const x = left + step * (index + .5) - barWidth / 2;
+    return `<rect x="${x}" y="${y}" width="${barWidth}" height="${size}" rx="3" fill="${value !== null && value >= 0 ? '#42c7a8' : '#ff788c'}" opacity=".8"/><text class="value" x="${x + barWidth / 2}" y="${value !== null && value >= 0 ? y - 7 : y + size + 15}" text-anchor="middle">${value === null ? '—' : formatYi(value, 0)}</text><text class="label" x="${x + barWidth / 2}" y="${height - 13}" text-anchor="middle">${esc(row.label.replace(/^20/, ''))}</text>`;
+  }).join('')}</svg>`;
 }
 
-function renderBalance() {
-  const b24 = BYD_SNAPSHOT.balance[2024];
-  const b25 = BYD_SNAPSHOT.balance[2025];
+function latestBalance() {
+  const rows = [...(state.view.financials.balance ?? [])].sort((a, b) => number(a.period_end_ms ?? a.period_end) - number(b.period_end_ms ?? b.period_end));
+  return rows.at(-1) ?? null;
+}
+
+function renderFinance() {
+  const cRows = cashRows();
+  $('#cash-chart').innerHTML = renderCashChart(cRows);
+  const balance = latestBalance();
+  if (!balance) {
+    const fallback = isByd(state.view.company.thscode) ? BYD_SNAPSHOT.balance[2025] : null;
+    if (fallback) {
+      renderBalanceRows({ assets: fallback.assets, liabilities: fallback.liabilities, currentAssets: fallback.currentAssets, cash: fallback.cash });
+    } else $('#balance-chart').innerHTML = emptyState('资产负债数据暂不可用');
+  } else {
+    renderBalanceRows({
+      assets: number(balance.assets_total ?? balance.total_assets),
+      liabilities: number(balance.total_debt ?? balance.total_liabilities ?? balance.liabilities_total),
+      currentAssets: number(balance.total_current_assets ?? balance.current_assets_total),
+      cash: number(balance.cash ?? balance.currency_funds),
+    });
+  }
+  const rows = state.view.financials.income ?? [];
+  $('#finance-table').innerHTML = rows.length ? `<table><thead><tr><th>报告期</th><th>营业收入</th><th>归母净利润</th></tr></thead><tbody>${rows.slice(-8).map(row => `<tr><td>${esc(reportLabel(row))}</td><td>${formatYi(row.operating_income)}</td><td>${formatYi(row.parent_holder_net_profit)}</td></tr>`).join('')}</tbody></table>` : '';
+}
+
+function renderBalanceRows(values) {
+  const assets = number(values.assets);
+  const liabilities = number(values.liabilities);
   const rows = [
-    { label: '资产负债率', before: b24.liabilities / b24.assets * 100, after: b25.liabilities / b25.assets * 100, max: 100, unit: '%' },
-    { label: '流动比率', before: b24.currentAssets / b24.currentLiabilities, after: b25.currentAssets / b25.currentLiabilities, max: 1.2, unit: '×' },
-    { label: '货币资金', before: b24.cash / YI, after: b25.cash / YI, max: 1200, unit: '亿' },
+    { label: '资产总额', value: assets, ratio: 100 },
+    { label: '负债总额', value: liabilities, ratio: assets && liabilities !== null ? liabilities / assets * 100 : null },
+    { label: '流动资产', value: number(values.currentAssets), ratio: assets && number(values.currentAssets) !== null ? number(values.currentAssets) / assets * 100 : null },
+    { label: '货币资金', value: number(values.cash), ratio: assets && number(values.cash) !== null ? number(values.cash) / assets * 100 : null },
   ];
-  $('#balance-chart').innerHTML = `<div class="liquidity-list">${rows.map((row) => `<div class="liquidity-row"><label>${row.label}</label><div class="track"><i style="width:${Math.min(100, row.after / row.max * 100)}%"></i></div><strong>${row.before.toFixed(row.unit === '亿' ? 1 : 2)} → ${row.after.toFixed(row.unit === '亿' ? 1 : 2)}${row.unit}</strong></div>`).join('')}</div>`;
-  $('#finance-table').innerHTML = `<table><thead><tr><th>指标</th><th>2024</th><th>2025</th></tr></thead><tbody>
-    <tr><td>资产总额</td><td>${yi(b24.assets)}</td><td>${yi(b25.assets)}</td></tr>
-    <tr><td>负债总额</td><td>${yi(b24.liabilities)}</td><td>${yi(b25.liabilities)}</td></tr>
-    <tr><td>流动资产</td><td>${yi(b24.currentAssets)}</td><td>${yi(b25.currentAssets)}</td></tr>
-    <tr><td>流动负债</td><td>${yi(b24.currentLiabilities)}</td><td>${yi(b25.currentLiabilities)}</td></tr>
-    <tr><td>货币资金</td><td>${yi(b24.cash)}</td><td>${yi(b25.cash)}</td></tr>
-  </tbody></table>`;
+  $('#balance-chart').innerHTML = `<div class="balance-list">${rows.map(row => `<div class="balance-row"><span>${row.label}</span><div class="balance-track"><i style="width:${Math.max(0, Math.min(100, row.ratio ?? 0))}%"></i></div><strong>${formatYi(row.value, 0)}</strong></div>`).join('')}</div>`;
 }
 
 function renderValuation() {
-  const { ttmParentProfitYi, ttmParentProfitOperandsYi } = state.research.metrics;
-  $('#ttm-formula').innerHTML = `<div class="formula"><div class="equation">326.19 − 155.11 + 123.25<br>= <strong>${ttmParentProfitYi.toFixed(2)} 亿元</strong></div><small>2025 年归母利润 − 2025H1 + 2026H1</small></div>`;
-  const multiples = [15, 20, 25, 30, 35, 40];
-  $('#valuation-grid').innerHTML = `<div class="sensitivity-grid">${multiples.map((multiple) => `<div><span>${multiple}× PE 假设</span><strong>${Math.round(ttmParentProfitYi * multiple).toLocaleString('zh-CN')} 亿元</strong></div>`).join('')}</div>`;
-  void ttmParentProfitOperandsYi;
+  const metrics = [
+    { label: '市盈率', key: 'peTtm', suffix: '×', basis: 'PE · TTM' },
+    { label: '市净率', key: 'pbMrq', suffix: '×', basis: 'PB · MRQ' },
+    { label: '市销率', key: 'psTtm', suffix: '×', basis: 'PS · TTM' },
+    { label: '市现率', key: 'pcfTtm', suffix: '×', basis: 'PCF · TTM' },
+  ];
+  $('#valuation-strip').innerHTML = metrics.map(metric => `<div class="valuation-card"><span>${metric.label}</span><strong>${formatMetric(state.view.valuation[metric.key], metric.suffix, 2)}</strong><small>${metric.basis}${state.view.valuation.timestamp ? ` · ${formatDate(state.view.valuation.timestamp)}` : ''}</small></div>`).join('');
+  $('#industry-state').textContent = state.view.industry.status === 'ok' ? '行业数据已接入。' : '行业映射尚未接入，暂不生成同行排名。';
+}
+
+export function renderMarketChart(series) {
+  const rows = (series ?? []).filter(row => number(row.close_price) !== null && number(row.date_ms) !== null).slice(-180);
+  if (rows.length < 2) return emptyState('行情序列暂不可用', state.view.market.status === 'unavailable' ? '当前为公开披露快照' : moduleError(state.bundle?.modules?.market));
+  const width = 870;
+  const height = 245;
+  const left = 54;
+  const right = 24;
+  const top = 18;
+  const priceBottom = 174;
+  const volumeTop = 188;
+  const volumeBottom = 224;
+  const closes = rows.map(row => number(row.close_price));
+  const min = Math.min(...closes);
+  const max = Math.max(...closes);
+  const volumes = rows.map(row => number(row.turnover ?? row.volume) ?? 0);
+  const maxVolume = Math.max(1, ...volumes);
+  const x = index => left + index / (rows.length - 1) * (width - left - right);
+  const y = value => top + (max - value) / Math.max(.0001, max - min) * (priceBottom - top);
+  const points = rows.map((row, index) => `${x(index)},${y(number(row.close_price))}`).join(' ');
+  const area = `${left},${priceBottom} ${points} ${width - right},${priceBottom}`;
+  const tickIndexes = [0, Math.floor((rows.length - 1) / 2), rows.length - 1];
+  return `<svg class="chart-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="${rows.length} 个交易日的前复权收盘价和成交量">
+    <defs><linearGradient id="priceArea" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#35a9e8" stop-opacity=".28"/><stop offset="1" stop-color="#35a9e8" stop-opacity=".02"/></linearGradient></defs>
+    <line class="grid" x1="${left}" x2="${width - right}" y1="${top}" y2="${top}"/><line class="grid" x1="${left}" x2="${width - right}" y1="${priceBottom}" y2="${priceBottom}"/>
+    <text class="axis" x="4" y="${top + 4}">${max.toFixed(2)}</text><text class="axis" x="4" y="${priceBottom}">${min.toFixed(2)}</text>
+    <polygon class="price-area" points="${area}"/><polyline class="price-line" points="${points}"/>
+    ${rows.map((row, index) => `<rect class="volume" x="${x(index)}" y="${volumeBottom - volumes[index] / maxVolume * (volumeBottom - volumeTop)}" width="${Math.max(1, (width - left - right) / rows.length * .72)}" height="${volumes[index] / maxVolume * (volumeBottom - volumeTop)}"/>`).join('')}
+    ${tickIndexes.map(index => `<text class="label" x="${x(index)}" y="241" text-anchor="${index === 0 ? 'start' : index === rows.length - 1 ? 'end' : 'middle'}">${formatDate(rows[index].date_ms)}</text>`).join('')}
+  </svg>`;
+}
+
+function renderMarket() {
+  $('#market-chart').innerHTML = renderMarketChart(state.view.market.series);
+  const signals = state.view.market.signals ?? {};
+  const metrics = [
+    ['20 日收益', formatPct(signals.return20)],
+    ['60 日收益', formatPct(signals.return60)],
+    ['60 日最大回撤', formatPct(signals.maxDrawdown60)],
+    ['20 日均线', formatPrice(signals.ma20)],
+    ['60 日均线', formatPrice(signals.ma60)],
+  ];
+  $('#market-kpis').innerHTML = metrics.map(([label, value]) => `<div><span>${label}</span><strong>${value}</strong></div>`).join('');
+  $('#market-period').textContent = signals.range ? `前复权日线 · ${signals.range.start} — ${signals.range.end}` : '前复权日线 · 区间数据不可用';
 }
 
 function renderEvents() {
-  const events = [
-    { date: '2026-08-29', title: '2026 年中报', text: '收入同比 -7.13%，归母净利润 -20.54%，经营净现金 +17.28%。', refs: 'h1-revenue,h1-parent-profit,h1-cfo', type: 'fact' },
-    { date: '2026-08-02', title: '7 月产销快报', text: '当月销量 419,211 辆；累计 2,227,722 辆，仍低于上年同期。', source: 'JUL26', type: 'fact' },
-    { date: '2026-07-01', title: '6 月产销快报', text: '当月销量 403,472 辆；累计 1,808,511 辆，仍低于上年同期。', source: 'JUN26', type: 'fact' },
-    { date: '2026-04-29', title: '2026 年一季报', text: 'Q1 收入、归母净利润与经营净现金均同比下降。', refs: 'q1-revenue,q1-parent-profit,q1-cfo', type: 'negative' },
-    { date: '尚缺', title: '经营驱动拆分', text: '价格、销量与产品结构对收入的独立贡献尚未分离。', claim: 'drivers-unknown', type: 'unknown' },
-  ];
-  $('#event-list').innerHTML = events.map((event) => `<button class="event-card" ${event.refs ? `data-evidence="${event.refs}"` : ''} ${event.source ? `data-source="${event.source}"` : ''} ${event.claim ? `data-claim="${event.claim}"` : ''} aria-expanded="false"><time>${event.date}</time><h3>${event.title}</h3><p>${event.text}</p><span class="status-chip ${event.type}">${event.type === 'unknown' ? '暂无法验证' : event.type === 'negative' ? '反向证据' : '客观事实'}</span></button>`).join('');
+  const sourceEvents = state.view.sources.slice().sort((a, b) => String(b.disclosed).localeCompare(String(a.disclosed))).slice(0, 3);
+  const cards = sourceEvents.map(source => `<button class="event-card" data-source="${esc(source.id)}" aria-expanded="false"><time>${esc(source.disclosed)}</time><h3>${esc(source.name)}</h3><p>${esc(source.period)} · ${esc(source.publisher)}</p><span class="status-pill fact">客观事实</span></button>`);
+  if (state.view.context.status === 'unavailable') cards.push('<article class="event-card"><time>外部信息</time><h3>新闻、政策与宏观数据未接入</h3><p>iFinD 服务端配置不可用；不生成事件解释或影响判断。</p><span class="status-pill unknown">暂无法验证</span></article>');
+  if (state.view.industry.status === 'unavailable') cards.push('<article class="event-card"><time>行业位置</time><h3>同行样本与行业分位缺失</h3><p>缺少已核对的行业映射和同日可比口径。</p><span class="status-pill unknown">暂无法验证</span></article>');
+  $('#event-list').innerHTML = cards.length ? cards.join('') : emptyState('事件数据暂不可用');
+}
+
+function renderAll() {
+  renderModuleStatus();
+  renderQuote();
+  renderBusiness();
+  $('#composition-chart').innerHTML = renderDonutChart(state.view.revenueComposition);
+  renderOperating();
+  renderFinance();
+  renderValuation();
+  renderMarket();
+  renderEvents();
 }
 
 function rawValue(value) {
   if (value === null || value === undefined) return '未披露';
-  if (typeof value === 'number' && Math.abs(value) >= 1_000_000) return yi(value);
-  return Number.isFinite(Number(value)) ? Number(value).toLocaleString('zh-CN') : String(value);
+  return typeof value === 'number' && Math.abs(value) >= 1_000_000 ? formatYi(value) : String(value);
 }
 
 function evidenceCard(item) {
   const source = sourceById.get(item.sourceId);
-  return `<article class="evidence-item"><header><h3>${esc(item.label)}</h3><span>${esc(item.sourceId)}</span></header><div class="evidence-meta"><span>${esc(item.period)}</span><span>第 ${item.pages.join('、')} 页</span><span>${esc(item.scope)}</span><span>${esc(item.unit)}</span></div><div class="raw-values">${item.rawValues.map((value, index) => `<code>原值 ${index + 1} · ${esc(rawValue(value))}</code>`).join('')}</div>${source ? `<a href="${esc(source.url)}" target="_blank" rel="noreferrer">打开原报告 ↗</a>` : ''}</article>`;
+  return `<article class="evidence-item"><h3>${esc(item.label)}</h3><div class="evidence-meta"><span>${esc(item.period)}</span><span>第 ${item.pages.join('、')} 页</span><span>${esc(item.scope)}</span><span>${esc(item.unit)}</span></div><div class="raw-values">${item.rawValues.map((value, index) => `<code>原值 ${index + 1} · ${esc(rawValue(value))}</code>`).join('')}</div>${source ? `<a href="${esc(source.url)}" target="_blank" rel="noreferrer">打开原报告 ↗</a>` : ''}</article>`;
 }
 
 function sourceCard(source) {
-  return `<article class="evidence-item"><header><h3>${esc(source.name)}</h3><span>${esc(source.id)}</span></header><div class="evidence-meta"><span>${esc(source.disclosed)}</span><span>${esc(source.period)}</span></div><p>${esc(source.publisher)}</p><p>${esc(source.unitNote)}</p><a href="${esc(source.url)}" target="_blank" rel="noreferrer">打开原报告 ↗</a></article>`;
+  return `<article class="evidence-item"><h3>${esc(source.name)}</h3><div class="evidence-meta"><span>${esc(source.disclosed)}</span><span>${esc(source.period)}</span></div><p>${esc(source.publisher)}</p><p>${esc(source.unitNote)}</p><a href="${esc(source.url)}" target="_blank" rel="noreferrer">打开原报告 ↗</a></article>`;
 }
 
-function openEvidence(refs, trigger, options = {}) {
+function openDrawer(content, trigger) {
   const drawer = $('#evidence-drawer');
-  const content = $('#drawer-content');
   state.opener = trigger || document.activeElement;
   if (state.opener?.setAttribute) state.opener.setAttribute('aria-expanded', 'true');
-  const ids = String(refs || '').split(',').map((id) => id.trim()).filter(Boolean);
-  const items = ids.map((id) => evidenceById.get(id)).filter(Boolean);
-  const sources = (options.sourceIds || []).map((id) => sourceById.get(id)).filter(Boolean);
-  const header = options.title ? `<div class="evidence-summary"><h3>${esc(options.title)}</h3>${options.summary ? `<p>${esc(options.summary)}</p>` : ''}</div>` : '';
-  content.innerHTML = `${header}${items.map(evidenceCard).join('')}${sources.map(sourceCard).join('')}${!items.length && !sources.length ? `<div class="empty-evidence">${esc(options.empty || '该判断尚无可核对的原值与出处。')}</div>` : ''}`;
+  $('#drawer-content').innerHTML = content;
   drawer.classList.add('open');
   drawer.setAttribute('aria-hidden', 'false');
   document.body.style.overflow = 'hidden';
   $('aside', drawer).focus();
 }
 
-function openClaim(id, trigger) {
-  const claim = claimById.get(id);
-  if (!claim) return;
-  const summary = `${statusLabel(claim.epistemicStatus)} · ${directionLabel(claim.evidenceDirection)}${claim.missingReason ? `。${claim.missingReason}` : ''}`;
-  openEvidence(claim.evidenceRefs.join(','), trigger, { title: claim.title, summary, empty: claim.missingReason });
+function openEvidence(refs, trigger) {
+  const items = String(refs || '').split(',').map(id => evidenceById.get(id.trim())).filter(Boolean);
+  openDrawer(items.length ? items.map(evidenceCard).join('') : '<div class="evidence-item">该结论尚无可核对的披露原值。</div>', trigger);
+}
+
+function openSources(ids, trigger) {
+  const sources = ids.map(id => sourceById.get(id)).filter(Boolean);
+  openDrawer(sources.length ? sources.map(sourceCard).join('') : '<div class="evidence-item">当前公司没有可用的披露来源。</div>', trigger);
+}
+
+function openModuleEvidence(name, trigger) {
+  const module = state.bundle?.modules?.[name];
+  const labels = { market: '行情数据', financials: '财务报表', valuation: '估值快照', indicators: '财务指标' };
+  const requestIds = module?.requestIds ?? [];
+  const errorRows = module?.errors ?? [];
+  openDrawer(`<article class="evidence-item"><h3>${labels[name] || name}</h3><div class="evidence-meta"><span>来源：${state.view.sourceState.label}</span><span>状态：${esc(module?.status || 'unavailable')}</span><span>数据时间：${esc(formatDate(state.view.sourceState.generatedAt, true))}</span></div>${requestIds.length ? `<div class="raw-values">${requestIds.map(id => `<code>requestId · ${esc(id)}</code>`).join('')}</div>` : ''}${errorRows.length ? `<p>${errorRows.map(item => esc(item.message)).join('；')}</p>` : '<p>该模块已返回数据；图表保留原始缺失值，不补零。</p>'}</article>`, trigger);
 }
 
 function closeDrawer() {
@@ -279,91 +404,141 @@ function closeDrawer() {
   state.opener = null;
 }
 
-function renderAll() {
-  renderSegments();
-  renderOperating();
-  renderProfit();
-  renderCash();
-  renderBalance();
-  renderValuation();
-  renderEvents();
+function setBusy(busy, label = '') {
+  $('#main-content').setAttribute('aria-busy', String(busy));
+  if (busy) $('#module-status').innerHTML = `<span class="pulse" aria-hidden="true"></span><strong>${esc(label || '正在加载')}</strong><span>行情、财务与估值分别加载</span>`;
 }
 
-const sectionByDimension = {
-  operating_quality: 'operating', financial_trend: 'finance', valuation: 'valuation',
-  market_characteristics: 'market', industry_position: 'peers', material_events: 'events', risk: 'events',
-};
+async function loadCompany(company, { initial = false } = {}) {
+  setBusy(true, `正在加载${company.name || company.thscode}`);
+  try {
+    const bundle = await client.research(company);
+    state.company = { ...company, companyType: isByd(company.thscode) ? 'manufacturing' : 'general' };
+    state.bundle = bundle;
+    state.view = normalizeResearchView(bundle, company, isByd(company.thscode) ? BYD_SNAPSHOT : null);
+    $('#stock-search').value = `${state.view.company.name} · ${state.view.company.thscode}`;
+  } catch (error) {
+    if (initial && isByd(company.thscode)) {
+      state.company = { ...company, companyType: 'manufacturing' };
+      state.bundle = createBydDemoBundle(BYD_SNAPSHOT);
+      state.view = normalizeResearchView(null, company, BYD_SNAPSHOT);
+      showToast('实时数据暂不可用，已切换为公开披露快照');
+    } else {
+      showToast(error instanceof ResearchClientError ? error.message : '公司数据加载失败');
+      return;
+    }
+  } finally {
+    setBusy(false);
+    renderAll();
+  }
+}
 
-$('#research-task').addEventListener('submit', (event) => {
+function renderSearchResults(items, query) {
+  const results = $('#search-results');
+  results.hidden = false;
+  $('#stock-search').setAttribute('aria-expanded', 'true');
+  results.innerHTML = items.length ? items.map((item, index) => `<button type="button" role="option" aria-selected="${index === 0}" data-code="${esc(item.thscode)}" data-name="${esc(item.name)}"><span><strong>${esc(item.name)}</strong><br><small>${esc(item.market || 'A 股')}</small></span><small>${esc(item.thscode)}</small></button>`).join('') : `<div class="search-empty">未找到“${esc(query)}”对应的 A 股公司</div>`;
+}
+
+async function runSearch(query) {
+  const clean = query.trim();
+  if (!clean) {
+    $('#search-results').hidden = true;
+    return;
+  }
+  try {
+    state.searchItems = await client.search(clean);
+    renderSearchResults(state.searchItems, clean);
+  } catch (error) {
+    renderSearchResults([], clean);
+    showToast(error instanceof ResearchClientError ? error.message : '搜索服务暂不可用');
+  }
+}
+
+function setMode(mode, options = {}) {
+  state.mode = mode === 'professional' ? 'professional' : 'simple';
+  factsForMode(state.research, state.mode);
+  document.body.classList.toggle('mode-professional', state.mode === 'professional');
+  $$('[data-mode]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.mode === state.mode)));
+  if (!options.silent) showToast(state.mode === 'professional' ? '已展开财务原值' : '已收起财务原值');
+}
+
+const sectionByDimension = { operating_quality: 'operating', financial_trend: 'finance', valuation: 'valuation', market_characteristics: 'market', industry_position: 'valuation', material_events: 'events', risk: 'events' };
+
+$('#research-task').addEventListener('submit', event => {
   event.preventDefault();
   const question = $('#research-question').value.trim();
-  state.workbench = buildWorkbench(state.bundle, { name: '比亚迪', thscode: '002594.SZ', companyType: 'manufacturing' }, question);
-  const selected = state.workbench.report.selectedDimensions.slice(0, 3);
-  $('#priority-result').innerHTML = `<strong>${esc(question || '公司研究')}</strong><ul>${selected.map((item) => `<li><a href="#${sectionByDimension[item.dimension]}">${esc(item.label)}</a>：${esc(item.relevanceReason)}</li>`).join('')}</ul>`;
+  const workbench = buildWorkbench(state.bundle, state.company, question);
+  const selected = workbench.report.selectedDimensions.slice(0, 3);
+  $('#priority-result').innerHTML = `<strong>${esc(question || '公司研究')}</strong><ol>${selected.map(item => `<li><a href="#${sectionByDimension[item.dimension]}">${esc(item.label)}</a>：${esc(item.relevanceReason)}</li>`).join('')}</ol>`;
   $('#priority-result').hidden = false;
-  const target = document.getElementById(sectionByDimension[selected[0].dimension]);
-  target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  document.getElementById(sectionByDimension[selected[0]?.dimension] || 'operating')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 });
 
-$$('[data-mode]').forEach((button) => button.addEventListener('click', () => setMode(button.dataset.mode)));
-$$('[data-period]').forEach((button) => button.addEventListener('click', () => {
-  state.period = button.dataset.period;
-  $$('[data-period]').forEach((item) => { item.classList.toggle('active', item === button); item.setAttribute('aria-pressed', String(item === button)); });
-  renderOperating();
-}));
-$$('[data-cash-view]').forEach((button) => button.addEventListener('click', () => {
-  state.cashView = button.dataset.cashView;
-  $$('[data-cash-view]').forEach((item) => { item.classList.toggle('active', item === button); item.setAttribute('aria-pressed', String(item === button)); });
-  renderCash();
-}));
+const searchInput = $('#stock-search');
+searchInput.addEventListener('input', () => {
+  clearTimeout(runSearch.timer);
+  runSearch.timer = setTimeout(() => runSearch(searchInput.value.replace(/·.*$/, '').trim()), 260);
+});
+searchInput.addEventListener('focus', () => searchInput.select());
+$('#company-search').addEventListener('submit', event => {
+  event.preventDefault();
+  if (state.searchItems[0]) loadCompany(state.searchItems[0]);
+  else runSearch(searchInput.value.replace(/·.*$/, '').trim());
+});
+$('#search-results').addEventListener('click', event => {
+  const option = event.target.closest('[data-code]');
+  if (!option) return;
+  $('#search-results').hidden = true;
+  searchInput.setAttribute('aria-expanded', 'false');
+  loadCompany({ name: option.dataset.name, thscode: option.dataset.code });
+});
 
-document.addEventListener('click', (event) => {
+$$('[data-mode]').forEach(button => button.addEventListener('click', () => setMode(button.dataset.mode)));
+document.addEventListener('pointerdown', event => {
+  if (!event.target.closest('#company-search')) {
+    $('#search-results').hidden = true;
+    searchInput.setAttribute('aria-expanded', 'false');
+  }
+});
+
+document.addEventListener('click', event => {
   const evidenceTrigger = event.target.closest('[data-evidence]');
-  const claimTrigger = event.target.closest('[data-claim]');
   const sourceTrigger = event.target.closest('[data-source]');
+  const moduleTrigger = event.target.closest('[data-module]');
   const action = event.target.closest('[data-action]')?.dataset.action;
-  if (claimTrigger?.dataset.claim) { openClaim(claimTrigger.dataset.claim, claimTrigger); return; }
-  if (evidenceTrigger?.dataset.evidence) { openEvidence(evidenceTrigger.dataset.evidence, evidenceTrigger); return; }
-  if (sourceTrigger?.dataset.source) { openEvidence('', sourceTrigger, { sourceIds: [sourceTrigger.dataset.source] }); return; }
-  if (event.target.closest('[data-close]')) { closeDrawer(); return; }
-  if (action === 'peers') document.getElementById('peers').scrollIntoView({ behavior: 'smooth', block: 'center' });
-  if (action === 'events') document.getElementById('events').scrollIntoView({ behavior: 'smooth', block: 'start' });
-  if (action === 'assistant') { document.getElementById('research-task').scrollIntoView({ behavior: 'smooth' }); $('#research-question').focus(); }
-  if (action === 'sources') openEvidence('', event.target.closest('[data-action]'), { sourceIds: BYD_SNAPSHOT.sources.map((source) => source.id), title: '披露文件', summary: '每个指标和判断仍绑定到具体页码与原值。' });
+  if (evidenceTrigger) return openEvidence(evidenceTrigger.dataset.evidence, evidenceTrigger);
+  if (sourceTrigger) return openSources([sourceTrigger.dataset.source], sourceTrigger);
+  if (moduleTrigger) return openModuleEvidence(moduleTrigger.dataset.module, moduleTrigger);
+  if (event.target.closest('[data-close]')) return closeDrawer();
+  if (action === 'sources') return openSources(state.view.sources.map(source => source.id), event.target.closest('[data-action]'));
+  if (action === 'print') return window.print();
   if (action === 'favorite') {
     const button = $('#favorite-button');
-    const next = button.getAttribute('aria-pressed') !== 'true';
-    button.setAttribute('aria-pressed', String(next));
-    button.textContent = next ? '已关注' : '关注';
+    const pressed = button.getAttribute('aria-pressed') !== 'true';
+    button.setAttribute('aria-pressed', String(pressed));
+    button.textContent = pressed ? '✓ 已关注' : '＋ 关注';
   }
-  if (action === 'print') window.print();
   if (action === 'export') {
-    const payload = { meta: BYD_SNAPSHOT.meta, metrics: state.research.metrics, claims: state.research.claims, evidence: state.research.evidence, sources: BYD_SNAPSHOT.sources };
+    const payload = { company: state.view.company, generatedAt: state.view.sourceState.generatedAt, providers: state.view.providers, modules: state.bundle?.modules ?? {}, disclosureSources: state.view.sources };
     const url = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' }));
-    const link = Object.assign(document.createElement('a'), { href: url, download: 'finscope-byd-research.json' });
+    const link = Object.assign(document.createElement('a'), { href: url, download: `finscope-${state.view.company.thscode}.json` });
     link.click();
     URL.revokeObjectURL(url);
   }
 });
 
-document.addEventListener('keydown', (event) => {
+document.addEventListener('keydown', event => {
   if (event.key === 'Escape' && $('#evidence-drawer').classList.contains('open')) closeDrawer();
   if (event.key === 'Tab' && $('#evidence-drawer').classList.contains('open')) {
-    const focusable = $$('a[href],button:not([disabled]),[tabindex="0"]', $('#evidence-drawer')).filter((node) => node.offsetParent !== null);
+    const focusable = $$('a[href],button:not([disabled]),[tabindex="0"]', $('#evidence-drawer')).filter(node => node.offsetParent !== null);
     if (!focusable.length) return;
     const first = focusable[0];
     const last = focusable.at(-1);
     if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
-    else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
   }
 });
-
-const searchInput = $('#stock-search');
-const searchResults = $('#search-results');
-searchInput.addEventListener('focus', () => { searchResults.hidden = false; searchResults.innerHTML = '<button type="button"><strong>比亚迪</strong><br><small>002594.SZ · 当前研究快照</small></button>'; searchInput.setAttribute('aria-expanded', 'true'); });
-searchInput.addEventListener('input', () => { searchResults.hidden = false; searchResults.innerHTML = /比亚迪|002594/i.test(searchInput.value) ? '<button type="button"><strong>比亚迪</strong><br><small>002594.SZ · 当前研究快照</small></button>' : '<button type="button" disabled>当前演示仅包含比亚迪快照</button>'; });
-searchResults.addEventListener('click', () => { searchInput.value = '比亚迪 · 002594.SZ'; searchResults.hidden = true; searchInput.setAttribute('aria-expanded', 'false'); });
-document.addEventListener('pointerdown', (event) => { if (!event.target.closest('#company-search')) { searchResults.hidden = true; searchInput.setAttribute('aria-expanded', 'false'); } });
 
 const menu = $('#research-nav');
 const menuButton = $('#mobile-menu');
@@ -375,14 +550,15 @@ function setMenu(open) {
 }
 menuButton.addEventListener('click', () => setMenu(!menu.classList.contains('open')));
 navBackdrop.addEventListener('click', () => setMenu(false));
-$$('.primary-nav a').forEach((link) => link.addEventListener('click', () => setMenu(false)));
+$$('.primary-nav a').forEach(link => link.addEventListener('click', () => setMenu(false)));
 
-const observer = new IntersectionObserver((entries) => {
-  const visible = entries.filter((entry) => entry.isIntersecting).sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+const observer = new IntersectionObserver(entries => {
+  const visible = entries.filter(entry => entry.isIntersecting).sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
   if (!visible) return;
-  $$('[data-nav]').forEach((link) => link.classList.toggle('active', link.dataset.nav === visible.target.id));
+  $$('[data-nav]').forEach(link => link.classList.toggle('active', link.dataset.nav === visible.target.id));
 }, { rootMargin: '-20% 0px -65% 0px', threshold: [0, .2, .6] });
-$$('.section-anchor').forEach((section) => observer.observe(section));
+$$('.section-anchor').forEach(section => observer.observe(section));
 
 renderAll();
 setMode('simple', { silent: true });
+loadCompany({ name: '比亚迪', thscode: '002594.SZ' }, { initial: true });

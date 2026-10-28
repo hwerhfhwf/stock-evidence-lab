@@ -36,8 +36,8 @@ test('distribution includes the optional iFinD provider boundary used by researc
 
 test('source distribution and Worker use one versioned FinScope entrypoint',()=>{
   assert.equal(distHtml,sourceHtml);
-  assert.match(sourceHtml,/app\.js\?v=finscope-3/);
-  assert.match(generatedUi,/finscope-3/);
+  assert.match(sourceHtml,/app\.js\?v=live-workbench-1/);
+  assert.match(generatedUi,/live-workbench-1/);
   assert.match(generatedUi,/buildWorkbench/);
   assert.doesNotMatch(generatedUi,/healthModelScript|buildHealthReport/);
 });

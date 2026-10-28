@@ -90,6 +90,23 @@ function fallbackFinancials(fallback) {
   };
 }
 
+function fallbackIndicators(fallback) {
+  const prior = fallback?.half?.[2025];
+  const current = fallback?.half?.[2026];
+  const balance = fallback?.balance?.[2025];
+  const growth = (now, before) => {
+    const a = numberOrNull(now);
+    const b = numberOrNull(before);
+    return a === null || b === null || b === 0 ? null : (a / b - 1) * 100;
+  };
+  return {
+    calculate_operating_income_yoy_growth_ratio: growth(current?.revenue, prior?.revenue),
+    calculate_parent_holder_net_profit_yoy_growth_ratio: growth(current?.parentProfit, prior?.parentProfit),
+    net_profit_cash_content: numberOrNull(current?.parentProfit) && numberOrNull(current?.cfo) !== null ? current.cfo / current.parentProfit * 100 : null,
+    assets_debt_ratio: numberOrNull(balance?.assets) && numberOrNull(balance?.liabilities) !== null ? balance.liabilities / balance.assets * 100 : null,
+  };
+}
+
 export function normalizeResearchView(bundle, company = {}, fallback = null) {
   const hasLiveBundle = Boolean(bundle && bundle.modules && bundle.thscode);
   const code = String(bundle?.company?.thscode ?? bundle?.thscode ?? company?.thscode ?? fallback?.meta?.symbol ?? '').toUpperCase();
@@ -129,10 +146,15 @@ export function normalizeResearchView(bundle, company = {}, fallback = null) {
     },
     market,
     financials,
-    indicators: {
+    indicators: hasLiveBundle ? {
       ...moduleState(modules.indicators),
       report: modules.indicators?.report ?? null,
       values: normalizeIndicators(modules.indicators),
+    } : {
+      status: fallback ? 'fallback' : 'unavailable',
+      errors: [],
+      report: fallback?.meta?.financialThrough ?? null,
+      values: fallbackIndicators(fallback),
     },
     valuation: {
       ...moduleState(modules.valuation),
