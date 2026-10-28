@@ -69,6 +69,16 @@ export function buildHealthReport(bundle, company) {
   return { company, summary, counts, steps, actions, financialPeriod };
 }
 
+function questionRoute(question='') {
+  if (/(能买吗|买不买|该买|会涨|涨不涨|目标价|卖出|卖吗)/.test(question)) return 'investment-decision';
+  if (/(估值|贵不贵|便宜|市盈率|市净率|同行|同业)/.test(question)) return 'valuation-peer';
+  if (/(现金流|回款|负债|偿债|杠杆|债务|资金链)/.test(question)) return 'cash-debt';
+  if (/(增长|收入|利润|增速|成长)/.test(question)) return 'growth';
+  return 'clarify';
+}
+
+const unknownStep=(title,body,evidence='当前数据尚未覆盖',detailTarget='lineage')=>({role:'unknown',state:'unknown',title,body,evidence,detailTarget});
+
 export function buildQuestionReport(bundle, company, question) {
   const values = indicators(bundle);
   const revenue = metric(values, ['calculate_operating_income_yoy_growth_ratio', 'operating_income_yoy_growth_ratio']);
@@ -76,7 +86,12 @@ export function buildQuestionReport(bundle, company, question) {
   const cash = metric(values, ['net_profit_cash_content']);
   const debt = metric(values, ['assets_debt_ratio']);
   const market = bundle?.modules?.market?.signals || {};
+  const route=questionRoute(question);
   const growthKnown = revenue !== null && profit !== null;
+  if(route==='clarify') return {route,question,answer:`请把问题说得更具体一些：你可以问 ${company.name} 的增长、现金流与负债，或估值与同行位置。`,chain:[unknownStep('先确定你真正关心的事','“这家公司怎么样”范围太大，直接生成结论容易把不同问题混在一起。'),unknownStep('选择一个判断方向','增长回答生意是否扩张；现金流与负债回答财务承受力；估值回答价格是否有可比依据。')],nextAction:'从增长、现金流与负债、估值与同行中选择一个方向'};
+  if(route==='investment-decision') return {route,question,answer:`这个工具不能替你判断 ${company.name} 能不能买，也不能预测会不会涨；它只能把已知证据、反证和缺口列清楚。`,chain:[unknownStep('先划清判断边界','买卖决定取决于个人目标、期限和风险承受力，不能由一组公司指标直接推出。','产品合规边界'),{role:'evidence',state:growthKnown?'support':'unknown',title:'目前能确认什么',body:growthKnown?`收入同比 ${pct(revenue)}，归母净利润同比 ${pct(profit)}；这是经营事实，不是涨跌信号。`:'最新收入或利润增速没有完整返回。',evidence:'最近报告期的增长指标',detailTarget:'financial'},unknownStep('还缺什么','缺少同日估值、同行比较、最新公告以及你的持有期限和风险边界，不能形成个人买卖结论。'),{role:'next',state:'unknown',title:'下一步怎么做',body:'先分别核实基本面、估值和风险，再由你按自己的目标决定是否继续研究。',evidence:'待完成的研究步骤',detailTarget:'lineage'}],nextAction:'先选择增长、现金流与负债或估值问题继续核实'};
+  if(route==='valuation-peer') return {route,question,answer:`目前缺少 ${company.name} 的同日估值和可比公司分位，不能可靠判断贵不贵。`,chain:[unknownStep('先看公司值多少钱','当前没有同日市盈率、市净率或企业价值倍数，不能用过期数字代替。','同日估值数据尚未接入'),{role:'context',state:growthKnown?'support':'unknown',title:'估值要和经营状态一起看',body:growthKnown?`收入同比 ${pct(revenue)}，归母净利润同比 ${pct(profit)}；增速不同，合理估值区间也会不同。`:'最新增长数据不完整，估值背景也缺一块。',evidence:'最近报告期的增长指标',detailTarget:'financial'},unknownStep('再和谁比较','缺少同一日期、同一口径的家电与制造业可比公司数据，不能用单家公司倍数直接下结论。','同行估值分位尚未接入'),unknownStep('哪些差异会误导比较','业务结构、海外收入、资本结构和一次性损益都会改变估值可比性。'),{role:'next',state:'unknown',title:'下一步该查什么',body:'补齐同日估值，再选业务结构接近的同行，统一口径比较历史分位和增长预期。',evidence:'待完成的估值研究',detailTarget:'lineage'}],nextAction:'补齐同日估值和可比公司分位'};
+  if(route==='cash-debt') return {route,question,answer:cash===null&&debt===null?`${company.name} 的现金流和负债数据不完整，现在不能判断财务承受力。`:cash!==null&&debt!==null?`${company.name} 每 100 元利润对应约 ${cash.toFixed(0)} 元经营现金，每 100 元资产中约有 ${debt.toFixed(1)} 元负债，需要把回款质量和负债结构一起看。`:`${company.name} 只有部分现金流或负债证据，暂时不能形成完整判断。`,chain:[{role:'phenomenon',state:cash===null?'unknown':cash>=100?'support':'counter',title:'利润有没有变成现金',body:cash===null?'经营现金与利润的对应关系暂时未知。':`每 100 元利润对应约 ${cash.toFixed(0)} 元经营现金。`,evidence:'经营现金流与净利润的同口径比较',detailTarget:'financial'},{role:'reason',state:debt===null?'unknown':debt<=60?'support':'counter',title:'资产背了多少负债',body:debt===null?'负债数据没有完整返回。':`每 100 元资产中约有 ${debt.toFixed(1)} 元负债；还需区分经营性负债和有息负债。`,evidence:'最近报告期的资产与负债',detailTarget:'financial'},unknownStep('短期压力还不知道','缺少债务期限、利息支出和受限资金明细，不能只凭资产负债率判断安全。','债务结构尚未接入'),{role:'counter',state:'unknown',title:'什么会推翻当前理解',body:'若应收账款和存货持续占用现金，或短债集中到期，即使利润为正，资金压力也可能上升。',evidence:'应收、存货与债务期限待核实',detailTarget:'financial'},{role:'next',state:'unknown',title:'下一步该查什么',body:'回到现金流量表和附注，核实应收、存货、有息负债及一年内到期债务。',evidence:'待完成的财务核查',detailTarget:'financial'}],nextAction:'核实应收、存货和有息负债期限'};
   const answer = !growthKnown
     ? `${company.name} 的最新增长数据不完整，现在还不能判断增长是否稳定。`
     : revenue >= 0 && profit >= 0
@@ -92,5 +107,5 @@ export function buildQuestionReport(bundle, company, question) {
     { role:'impact', state:number(market.return60)===null?'unknown':number(market.return60)<0?'counter':'support', title:'市场怎样消化这些信息', body:number(market.return60)===null?'近期价格数据暂不可用。':`近 60 日价格变化 ${pct(market.return60)}，期间最大回撤 ${pct(market.maxDrawdown60)}。这是市场反应，不是未来预测。`, evidence:'前复权日线，确定性计算', detailTarget:'market' },
     { role:'next', state:'unknown', title:'下一步该查什么', body:growthKnown?'先比较同行的收入和利润增速，再回到财报核实毛利率、应收账款和一次性损益。':'先补齐最新财务数据，再判断增长方向。', evidence:'待完成的研究步骤', detailTarget:'financial' },
   ];
-  return { question, answer, chain, nextAction: growthKnown?'比较同行并查看原始财报':'补齐最新财务数据' };
+  return { route, question, answer, chain, nextAction: growthKnown?'比较同行并查看原始财报':'补齐最新财务数据' };
 }
