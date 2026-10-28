@@ -121,6 +121,41 @@ test('provider failure and stale evidence become missing unverified propositions
   assert.ok(report.evidence.every(x=>x.freshness!=='current'||x.source.retrievedAt));
 });
 
+test('stale financial evidence is retained as history but cannot produce current facts or inferences',()=>{
+  const stale=structuredClone(bundle);
+  stale.generatedAt='2027-03-01T00:00:00Z';
+  const report=buildDiagnosisReport(stale,company,'增长情况如何？');
+  assert.ok(report.evidence.some(x=>x.type==='financial_field'&&x.freshness==='stale'));
+  assert.ok(report.propositions.some(x=>x.dimension==='operating_quality'&&x.epistemicStatus==='unverified'));
+  assert.equal(report.propositions.some(x=>['growth-fact','growth-inference'].includes(x.id)),false);
+  assert.match(report.summary,/过期|陈旧|无法作为当前/);
+});
+
+test('indicator evidence uses its own report period instead of another statement period',()=>{
+  const mixed=structuredClone(bundle);
+  mixed.modules.indicators.report='2026-2';
+  mixed.modules.financials.balance=[{period_end_ms:Date.UTC(2026,8,30)}];
+  const report=buildDiagnosisReport(mixed,company,'增长情况如何？');
+  assert.equal(report.evidence.find(x=>x.id==='metric-revenue-growth').period.end,'2026-06-30');
+});
+
+test('company type changes routing and unknown types use the general policy',()=>{
+  const manufacturer=buildDiagnosisReport(bundle,company,'增长情况如何？');
+  const bank=buildDiagnosisReport(bundle,{name:'示例银行',thscode:'000001.SZ',companyType:'bank'},'增长情况如何？');
+  assert.notDeepEqual(bank.selectedDimensions.slice(0,3).map(x=>x.dimension),manufacturer.selectedDimensions.slice(0,3).map(x=>x.dimension));
+  assert.match(bank.selectedDimensions[0].relevanceReason,/银行|资本|资产质量/);
+});
+
+test('market questions route market characteristics first and disclose matching calculations',()=>{
+  const market=buildDiagnosisReport(bundle,company,'行情特征如何？');
+  assert.equal(market.intent,'market');
+  assert.equal(market.selectedDimensions[0].dimension,'market_characteristics');
+  const proposition=market.propositions.find(x=>x.id==='market-fact');
+  assert.ok(proposition.evidenceRefs.includes('market-drawdown-60d'));
+  assert.ok(market.calculations.some(x=>x.id==='market-return-60d'));
+  assert.ok(market.calculations.some(x=>x.id==='market-drawdown-60d-calc'));
+});
+
 test('deterministic calculations disclose formula inputs unit and rounding',()=>{
   const report=buildDiagnosisReport(bundle,company,'增长情况如何？');
   const calculation=report.calculations.find(x=>x.id==='growth-gap');

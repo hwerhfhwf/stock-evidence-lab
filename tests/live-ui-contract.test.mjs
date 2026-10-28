@@ -37,3 +37,15 @@ test('interaction and responsive contracts meet the UI quality gate',()=>{
   assert.doesNotMatch(app,/X-api-key|sk-fuyao/);
 });
 
+test('all ranked dimensions remain reachable and overlapping requests are ignored',()=>{
+  assert.match(app,/selectedDimensions\.map/);
+  assert.doesNotMatch(app,/selectedDimensions\.slice\(0,3\)\.map/);
+  assert.match(app,/<details class="dimension-group supplementary"/);
+  assert.match(app,/requestSequence/);
+  assert.match(app,/requestId\s*!==\s*requestSequence/);
+});
+
+test('search result hidden state overrides its grid display',()=>{
+  assert.match(css,/\.search-results\[hidden\]\s*\{\s*display:\s*none/);
+});
+
