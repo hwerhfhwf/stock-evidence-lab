@@ -2,12 +2,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import worker from '../worker/index.js';
 
-test('worker serves the one-minute company health UI with security headers', async () => {
+test('worker serves the multidimensional diagnosis UI with security headers', async () => {
   const response = await worker.fetch(new Request('https://example.test/'), { FUYAO_API_KEY: 'secret' }, {});
   assert.equal(response.status, 200);
   assert.match(response.headers.get('content-type'), /text\/html/);
   assert.match(response.headers.get('content-security-policy'), /default-src 'self'/);
-  assert.match(await response.text(), /你想弄清什么/);
+  assert.match(await response.text(), /本次诊断范围/);
 });
 
 test('worker serves the multidimensional diagnosis model as a same-origin module', async () => {

@@ -1,4 +1,4 @@
-import { page, styles, appScript, healthModelScript, diagnosisModelScript } from './ui.js';
+import { page, styles, appScript, diagnosisModelScript } from './ui.js';
 import { createFuyaoClient, FuyaoError } from './fuyao.js';
 import { buildResearchBundle } from './research.js';
 
@@ -49,7 +49,6 @@ export default {
     if (url.pathname === '/') return response(page, { contentType: 'text/html; charset=utf-8', cache: 'private, max-age=60' });
     if (url.pathname === '/styles.css') return response(styles, { contentType: 'text/css; charset=utf-8' });
     if (url.pathname === '/app.js') return response(appScript, { contentType: 'text/javascript; charset=utf-8' });
-    if (url.pathname === '/health-model.js') return response(healthModelScript, { contentType: 'text/javascript; charset=utf-8' });
     if (url.pathname === '/diagnosis-model.js') return response(diagnosisModelScript, { contentType: 'text/javascript; charset=utf-8' });
     if (url.pathname === '/api/health') {
       return env.FUYAO_API_KEY
