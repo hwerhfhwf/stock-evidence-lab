@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Stock Evidence Lab：从结论回到证据的 AI Native 个股诊断产品">
+  <title>Stock Evidence Lab · 美的集团诊断</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="#top" aria-label="Stock Evidence Lab 首页">
+      <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
+      <span>Stock Evidence Lab</span>
+    </a>
+    <div class="top-actions">
+      <span class="snapshot-badge"><span class="pulse"></span>公开快照 · 截至 2026-08-28</span>
+      <button class="ghost-button" id="method-button">方法与边界</button>
+    </div>
+  </header>
+
+  <main id="top">
+    <section class="hero-shell">
+      <div class="hero-copy">
+        <p class="eyebrow">AI NATIVE EQUITY DIAGNOSTICS</p>
+        <h1>不替你下结论，<br><em>替每个结论找证据。</em></h1>
+        <p class="hero-subtitle">把财报、行情、事件和同行线索拆成可验证的事实、分析推断与未知项。每个数字都能回到来源，每个矛盾都值得继续追问。</p>
+      </div>
+      <div class="hero-company" aria-label="当前诊断公司">
+        <div class="company-row">
+          <div class="company-avatar">美</div>
+          <div><strong>美的集团</strong><span>000333.SZ · 多业务全球制造集团</span></div>
+          <button class="company-switch" title="首版固定为美的集团" aria-label="切换公司">⌄</button>
+        </div>
+        <div class="company-meta">
+          <span>最新财务期 <b>2026H1</b></span>
+          <span>主证据 <b>2 份</b></span>
+          <span>未经审计 <b>中报</b></span>
+        </div>
+      </div>
+    </section>
+
+    <section class="question-shell" aria-labelledby="question-title">
+      <div class="question-heading">
+        <span class="spark">✦</span>
+        <div><p id="question-title">你想验证什么？</p><span>AI 只负责理解问题和组织解释，数字计算由确定性规则完成。</span></div>
+      </div>
+      <form id="question-form">
+        <label class="sr-only" for="question-input">输入研究问题</label>
+        <textarea id="question-input" rows="2" placeholder="例如：增长为什么放缓？应收账款上升是否值得担心？"></textarea>
+        <button type="submit">开始诊断 <span>→</span></button>
+      </form>
+      <div class="prompt-row" aria-label="示例问题">
+        <button data-question="增长为什么放缓，应收账款有没有风险？">增长与应收风险</button>
+        <button data-question="现金流质量怎么样，负债是否上升？">现金与负债</button>
+        <button data-question="估值在同行里贵不贵？">估值与同行</button>
+        <button data-question="能买吗？未来会涨吗？">合规边界测试</button>
+      </div>
+      <div id="route-result" class="route-result" aria-live="polite"></div>
+    </section>
+
+    <section class="workspace">
+      <aside class="rail" aria-label="研究导航">
+        <p class="rail-label">诊断视图</p>
+        <nav id="dimension-nav">
+          <button class="active" data-dimension="all"><span>⌁</span>全景诊断 <b>7</b></button>
+          <button data-dimension="growth"><span>↗</span>经营增长 <b>1</b></button>
+          <button data-dimension="cash"><span>◎</span>现金与资产 <b>2</b></button>
+          <button data-dimension="valuation"><span>◇</span>估值 <b>1</b></button>
+          <button data-dimension="market"><span>⌇</span>行情特征 <b>1</b></button>
+          <button data-dimension="industry"><span>▦</span>行业位置 <b>1</b></button>
+          <button data-dimension="events"><span>◷</span>事件与风险 <b>1</b></button>
+        </nav>
+        <div class="rail-note"><span>数据快照</span><strong>2026-08-28</strong><p>财务数据来自公开披露；行情与估值未接入时保持未知。</p></div>
+      </aside>
+
+      <div class="content-column">
+        <section class="section-heading">
+          <div><p class="eyebrow">EVIDENCE MAP</p><h2>当前证据怎么说</h2><span id="result-context">基于 2026H1 公开披露生成，不构成投资建议。</span></div>
+          <div id="scenario-switcher" class="scenario-switcher" aria-label="数据场景切换">
+            <button class="active" data-mode="normal">正常快照</button>
+            <button data-mode="missing-data">关键缺失</button>
+            <button data-mode="provider-error">接口失败</button>
+          </div>
+        </section>
+
+        <section id="evidence-summary" class="evidence-summary" aria-label="证据状态概览"></section>
+
+        <section class="signal-strip" id="signal-strip">
+          <div><span>收入同比</span><strong>+3.55%</strong><small>2026H1</small></div>
+          <div><span>归母净利润同比</span><strong>+1.66%</strong><small>2026H1</small></div>
+          <div class="warning"><span>扣非净利润同比</span><strong>−25.31%</strong><small>汇率口径影响</small></div>
+          <div class="warning"><span>应收较年初</span><strong>+53.16%</strong><small>需解释</small></div>
+        </section>
+
+        <section id="diagnostic-grid" class="diagnostic-grid" aria-live="polite"></section>
+
+        <section class="next-questions">
+          <div><p class="eyebrow">RESEARCH QUEUE</p><h2>下一步该验证什么</h2></div>
+          <div id="question-queue" class="question-queue"></div>
+        </section>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div><strong>Stock Evidence Lab</strong><span>研究辅助工具 · 不构成投资建议</span></div>
+    <p>原始披露优先于模型解释。数据缺失、冲突或过期时，系统会显式标注。</p>
+  </footer>
+
+  <div id="evidence-drawer" class="drawer" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="drawer-title">
+    <button id="drawer-backdrop" class="drawer-backdrop" aria-label="关闭证据详情"></button>
+    <article class="drawer-panel">
+      <button id="drawer-close" class="drawer-close" aria-label="关闭">×</button>
+      <div id="drawer-content"></div>
+    </article>
+  </div>
+
+  <div id="method-modal" class="drawer" aria-hidden="true" role="dialog" aria-modal="true">
+    <button id="method-backdrop" class="drawer-backdrop" aria-label="关闭方法说明"></button>
+    <article class="drawer-panel method-panel">
+      <button id="method-close" class="drawer-close" aria-label="关闭">×</button>
+      <p class="eyebrow">METHOD & LIMITS</p>
+      <h2>谁负责什么</h2>
+      <div class="method-grid">
+        <div><span>01</span><h3>确定性引擎</h3><p>同比、现金覆盖倍数、资产变化与状态规则。相同输入必须得到相同输出。</p></div>
+        <div><span>02</span><h3>语言模型</h3><p>理解问题、选择维度、组织解释、提出待验证问题。不能编造缺失数字。</p></div>
+        <div><span>03</span><h3>数据工具</h3><p>获取财报、行情、估值与公告。失败时保留最后可验证快照并显式降级。</p></div>
+      </div>
+      <div class="boundary"><strong>当前边界</strong><p>本演示使用真实公开财务快照；未接入扶摇/iFinD，因此实时行情、同日估值分位和最新事件保持“未知”。</p></div>
+    </article>
+  </div>
+
+  <script type="module" src="./app.mjs"></script>
+</body>
+</html>
