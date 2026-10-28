@@ -49,6 +49,15 @@ test('every research claim resolves to dated raw evidence or an explicit unknown
   }
 });
 
+test('the funding-gap inference cites the capital-spending cash outflow directly', () => {
+  const research = deriveBydResearch(BYD_SNAPSHOT);
+  const fundingClaim = research.claims.find((claim) => claim.id === 'funding-gap');
+  const capexEvidence = research.evidence.find((item) => item.id === 'capex-cash');
+
+  assert.ok(fundingClaim.evidenceRefs.includes('capex-cash'));
+  assert.deepEqual(capexEvidence.rawValues, [97_359_768_000, 156_807_853_000]);
+});
+
 test('the no-secret demo bundle remains useful without inventing market data', () => {
   const bundle = createBydDemoBundle(BYD_SNAPSHOT);
 

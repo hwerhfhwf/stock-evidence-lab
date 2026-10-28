@@ -7,12 +7,12 @@ const sourceHtml=await readFile(new URL('../ui/index.html',import.meta.url),'utf
 const distHtml=await readFile(new URL('../dist/index.html',import.meta.url),'utf8');
 const generatedUi=await readFile(new URL('../worker/ui.js',import.meta.url),'utf8');
 
-test('worker serves the multidimensional diagnosis UI with security headers', async () => {
+test('worker serves the FinScope research workbench with security headers', async () => {
   const response = await worker.fetch(new Request('https://example.test/'), { FUYAO_API_KEY: 'secret' }, {});
   assert.equal(response.status, 200);
   assert.match(response.headers.get('content-type'), /text\/html/);
   assert.match(response.headers.get('content-security-policy'), /default-src 'self'/);
-  assert.match(await response.text(), /本次诊断范围/);
+  assert.match(await response.text(), /公司与业务/);
 });
 
 test('worker serves the multidimensional diagnosis model as a same-origin module', async () => {
@@ -28,11 +28,11 @@ test('worker does not cache unhashed client scripts across UI revisions', async 
   assert.equal(response.headers.get('cache-control'), 'no-store');
 });
 
-test('source distribution and Worker use one versioned multidimensional entrypoint',()=>{
+test('source distribution and Worker use one versioned FinScope entrypoint',()=>{
   assert.equal(distHtml,sourceHtml);
-  assert.match(sourceHtml,/app\.js\?v=multidimensional-2/);
-  assert.match(generatedUi,/multidimensional-2/);
-  assert.match(generatedUi,/buildDiagnosisReport/);
+  assert.match(sourceHtml,/app\.js\?v=finscope-3/);
+  assert.match(generatedUi,/finscope-3/);
+  assert.match(generatedUi,/buildWorkbench/);
   assert.doesNotMatch(generatedUi,/healthModelScript|buildHealthReport/);
 });
 

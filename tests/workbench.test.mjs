@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { buildWorkbench } from '../ui/diagnosis-model.js';
+import { BYD_SNAPSHOT, createBydDemoBundle, deriveBydResearch, factsForMode } from '../ui/finscope-data.js';
 
 test('seven dimensions expose complete subquestions without treating inference as coverage',()=>{
  const w=buildWorkbench({modules:{}},{name:'公司'},'');
@@ -42,4 +43,23 @@ test('China report dates do not move to the previous day when API uses midnight 
 test('rounded operands never appear in an arithmetically false equality',()=>{
  const w=buildWorkbench({modules:{indicators:{data:{abilities:[{indicators:[{index_id:'calculate_operating_income_yoy_growth_ratio',value:1.47},{index_id:'calculate_parent_holder_net_profit_yoy_growth_ratio',value:-1.96}]}]}}}},{},'');
  assert.equal(w.growthEquation,'-1.960% − 1.470% ≈ −3.4 个百分点');
+});
+
+test('research questions change priority without changing underlying facts',()=>{
+ const bundle=createBydDemoBundle(BYD_SNAPSHOT), company={name:'比亚迪',thscode:'002594.SZ',companyType:'manufacturing'};
+ const growth=buildWorkbench(bundle,company,'增长放缓是否伴随经营质量下降？');
+ const valuation=buildWorkbench(bundle,company,'现在估值贵不贵？');
+ assert.equal(growth.report.selectedDimensions[0].dimension,'operating_quality');
+ assert.equal(valuation.report.selectedDimensions[0].dimension,'valuation');
+ assert.deepEqual(growth.report.evidence,valuation.report.evidence);
+});
+
+test('simple and professional modes share facts and differ only in depth',()=>{
+ const research=deriveBydResearch(BYD_SNAPSHOT);
+ const simple=factsForMode(research,'simple');
+ const professional=factsForMode(research,'professional');
+ assert.deepEqual(simple.claims,professional.claims);
+ assert.deepEqual(simple.metrics,professional.metrics);
+ assert.equal(simple.evidence.length,0);
+ assert.equal(professional.evidence.length,research.evidence.length);
 });

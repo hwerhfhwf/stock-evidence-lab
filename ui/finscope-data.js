@@ -73,6 +73,10 @@ export function deriveBydResearch(snapshot = BYD_SNAPSHOT) {
     evidence('regions', '分地区营业收入', '2024—2025', 'AR25', [29, 30], [snapshot.regions[2024].domestic, snapshot.regions[2024].overseas, snapshot.regions[2025].domestic, snapshot.regions[2025].overseas]),
     evidence('segments', '分产品营业收入及毛利率', '2024—2025', 'AR25', [29, 30], snapshot.segments.flatMap((segment) => [segment.revenue2024, segment.revenue2025, segment.grossMargin2025]), '元 / %'),
     evidence('cash-structure', '经营、投资与筹资现金流', '2024—2025', 'AR25', [130, 131], [snapshot.cashFlow[2024].cfo, snapshot.cashFlow[2024].investing, snapshot.cashFlow[2024].financing, snapshot.cashFlow[2025].cfo, snapshot.cashFlow[2025].investing, snapshot.cashFlow[2025].financing]),
+    evidence('capex-cash', '购建固定资产、无形资产和其他长期资产支付的现金', '2024—2025', 'AR25', [130], [snapshot.cashFlow[2024].capexCash, snapshot.cashFlow[2025].capexCash]),
+    evidence('q1-revenue', '营业收入', '2025Q1—2026Q1', 'Q126', [1, 2], [snapshot.q1[2025].revenue, snapshot.q1[2026].revenue]),
+    evidence('q1-parent-profit', '归母净利润', '2025Q1—2026Q1', 'Q126', [1, 2], [snapshot.q1[2025].parentProfit, snapshot.q1[2026].parentProfit]),
+    evidence('q1-cfo', '经营活动现金流量净额', '2025Q1—2026Q1', 'Q126', [1, 2], [snapshot.q1[2025].cfo, snapshot.q1[2026].cfo]),
     evidence('h1-revenue', '营业收入', '2025H1—2026H1', 'H126', [1, 2], [h1_2025.revenue, h1_2026.revenue]),
     evidence('h1-parent-profit', '归母净利润', '2025H1—2026H1', 'H126', [1, 2], [h1_2025.parentProfit, h1_2026.parentProfit]),
     evidence('h1-cfo', '经营活动现金流量净额', '2025H1—2026H1', 'H126', [1, 2], [h1_2025.cfo, h1_2026.cfo]),
@@ -98,13 +102,21 @@ export function deriveBydResearch(snapshot = BYD_SNAPSHOT) {
     { id: 'annual-direction', title: '收入增长，归母利润下降', evidenceDirection: 'conflicting', epistemicStatus: 'fact', evidenceRefs: ['annual-revenue', 'annual-parent-profit'] },
     { id: 'overseas-offset', title: '境外增长抵消境内下滑', evidenceDirection: 'positive', epistemicStatus: 'inference', evidenceRefs: ['regions'] },
     { id: 'cash-pressure', title: '经营现金支出增长快于流入', evidenceDirection: 'negative', epistemicStatus: 'fact', evidenceRefs: ['annual-cfo', 'cash-structure'] },
-    { id: 'funding-gap', title: '经营净现金未覆盖购建长期资产现金支出', evidenceDirection: 'conflicting', epistemicStatus: 'inference', evidenceRefs: ['annual-cfo', 'cash-structure'] },
+    { id: 'funding-gap', title: '经营净现金未覆盖购建长期资产现金支出', evidenceDirection: 'conflicting', epistemicStatus: 'inference', evidenceRefs: ['annual-cfo', 'capex-cash'] },
     { id: 'h1-divergence', title: '中报利润下降，经营现金改善', evidenceDirection: 'conflicting', epistemicStatus: 'fact', evidenceRefs: ['h1-parent-profit', 'h1-cfo'] },
     { id: 'valuation-unknown', title: '缺少同日价格与同行估值', evidenceDirection: 'missing', epistemicStatus: 'unverified', evidenceRefs: [], missingReason: '当前快照没有可核对的同日 A 股价格、历史估值和同行样本。' },
     { id: 'market-unknown', title: '行情特征尚无法计算', evidenceDirection: 'missing', epistemicStatus: 'unverified', evidenceRefs: [], missingReason: '当前快照没有前复权收盘价序列。' },
     { id: 'drivers-unknown', title: '价格、销量与产品组合贡献尚未分离', evidenceDirection: 'missing', epistemicStatus: 'unverified', evidenceRefs: [], missingReason: '合并财报不足以分离单车价格、销量和车型结构的独立贡献。' },
   ];
   return { metrics, evidence: evidenceItems, claims };
+}
+
+export function factsForMode(research, mode = 'simple') {
+  return {
+    metrics: research.metrics,
+    claims: research.claims,
+    evidence: mode === 'professional' ? research.evidence : [],
+  };
 }
 
 export function createBydDemoBundle(snapshot = BYD_SNAPSHOT) {
