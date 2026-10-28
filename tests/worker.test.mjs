@@ -36,8 +36,8 @@ test('source distribution and Worker use one versioned multidimensional entrypoi
   assert.doesNotMatch(generatedUi,/healthModelScript|buildHealthReport/);
 });
 
-test('all generated delivery artifacts exclude retired consumer copy',()=>{
-  for(const banned of ['公司体检','一分钟看懂','先说结论','还没有答案','需要反过来看','表现较稳']){
+test('all generated delivery artifacts exclude unsupported investment ratings',()=>{
+  for(const banned of ['综合评分','建议买入','建议卖出','表现较稳']){
     assert.doesNotMatch(distHtml+generatedUi,new RegExp(banned));
   }
 });
@@ -78,3 +78,4 @@ test('search endpoint returns only A-share candidates and never returns the API 
     globalThis.fetch = previousFetch;
   }
 });
+
