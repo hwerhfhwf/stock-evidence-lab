@@ -1,6 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import worker from '../worker/index.js';
+import { readFile } from 'node:fs/promises';
+
+const sourceHtml=await readFile(new URL('../ui/index.html',import.meta.url),'utf8');
+const distHtml=await readFile(new URL('../dist/index.html',import.meta.url),'utf8');
+const generatedUi=await readFile(new URL('../worker/ui.js',import.meta.url),'utf8');
 
 test('worker serves the multidimensional diagnosis UI with security headers', async () => {
   const response = await worker.fetch(new Request('https://example.test/'), { FUYAO_API_KEY: 'secret' }, {});
@@ -21,6 +26,20 @@ test('worker serves the multidimensional diagnosis model as a same-origin module
 test('worker does not cache unhashed client scripts across UI revisions', async () => {
   const response = await worker.fetch(new Request('https://example.test/app.js'), {}, {});
   assert.equal(response.headers.get('cache-control'), 'no-store');
+});
+
+test('source distribution and Worker use one versioned multidimensional entrypoint',()=>{
+  assert.equal(distHtml,sourceHtml);
+  assert.match(sourceHtml,/app\.js\?v=multidimensional-2/);
+  assert.match(generatedUi,/multidimensional-2/);
+  assert.match(generatedUi,/buildDiagnosisReport/);
+  assert.doesNotMatch(generatedUi,/healthModelScript|buildHealthReport/);
+});
+
+test('all generated delivery artifacts exclude retired consumer copy',()=>{
+  for(const banned of ['公司体检','一分钟看懂','先说结论','还没有答案','需要反过来看','表现较稳']){
+    assert.doesNotMatch(distHtml+generatedUi,new RegExp(banned));
+  }
 });
 
 test('health endpoint reports missing runtime secret without exposing it', async () => {
