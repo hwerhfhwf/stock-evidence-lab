@@ -49,3 +49,8 @@ test('search result hidden state overrides its grid display',()=>{
   assert.match(css,/\.search-results\[hidden\]\s*\{\s*display:\s*none/);
 });
 
+test('evidence drawer renders dated calculation inputs',()=>{
+  assert.match(app,/evidence\.inputValues/);
+  assert.match(combined,/计算输入/);
+});
+

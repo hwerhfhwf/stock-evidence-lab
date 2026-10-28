@@ -156,6 +156,29 @@ test('market questions route market characteristics first and disclose matching 
   assert.ok(market.calculations.some(x=>x.id==='market-drawdown-60d-calc'));
 });
 
+test('short market histories do not claim a 60-observation fact',()=>{
+  const short=structuredClone(bundle);
+  short.modules.market.signals={...short.modules.market.signals,points:2,return60:null,maxDrawdown60:-2,series:[
+    {date_ms:Date.UTC(2026,9,27),close_price:10},{date_ms:Date.UTC(2026,9,28),close_price:9.8},
+  ]};
+  const report=buildDiagnosisReport(short,company,'行情特征如何？');
+  const market=report.propositions.find(x=>x.dimension==='market_characteristics');
+  assert.equal(market.epistemicStatus,'unverified');
+  assert.match(market.statement,/不足 60|仅有 2/);
+  assert.equal(report.calculations.some(x=>x.id==='market-return-60d'),false);
+});
+
+test('market evidence preserves dated price inputs for inspection',()=>{
+  const withSeries=structuredClone(bundle);
+  withSeries.modules.market.signals.series=Array.from({length:60},(_,i)=>({date_ms:Date.UTC(2026,7,30+i),close_price:100+i}));
+  const report=buildDiagnosisReport(withSeries,company,'行情特征如何？');
+  const returns=report.evidence.find(x=>x.id==='market-60d');
+  const drawdown=report.evidence.find(x=>x.id==='market-drawdown-60d');
+  assert.deepEqual(Object.keys(returns.inputValues[0]),['date','close']);
+  assert.equal(returns.inputValues.length,2);
+  assert.equal(drawdown.inputValues.length,60);
+});
+
 test('deterministic calculations disclose formula inputs unit and rounding',()=>{
   const report=buildDiagnosisReport(bundle,company,'增长情况如何？');
   const calculation=report.calculations.find(x=>x.id==='growth-gap');
