@@ -28,6 +28,12 @@ test('worker does not cache unhashed client scripts across UI revisions', async 
   assert.equal(response.headers.get('cache-control'), 'no-store');
 });
 
+test('distribution includes the optional iFinD provider boundary used by research.js', async () => {
+  const source = await readFile(new URL('../worker/ifind.js', import.meta.url), 'utf8');
+  const built = await readFile(new URL('../dist/server/ifind.js', import.meta.url), 'utf8');
+  assert.equal(built, source);
+});
+
 test('source distribution and Worker use one versioned FinScope entrypoint',()=>{
   assert.equal(distHtml,sourceHtml);
   assert.match(sourceHtml,/app\.js\?v=finscope-3/);
