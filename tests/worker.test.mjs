@@ -10,11 +10,11 @@ test('worker serves the one-minute company health UI with security headers', asy
   assert.match(await response.text(), /你想弄清什么/);
 });
 
-test('worker serves the health model as a same-origin module', async () => {
-  const response = await worker.fetch(new Request('https://example.test/health-model.js'), {}, {});
+test('worker serves the multidimensional diagnosis model as a same-origin module', async () => {
+  const response = await worker.fetch(new Request('https://example.test/diagnosis-model.js'), {}, {});
   assert.equal(response.status, 200);
   assert.match(response.headers.get('content-type'), /text\/javascript/);
-  assert.match(await response.text(), /buildHealthReport/);
+  assert.match(await response.text(), /buildDiagnosisReport/);
   assert.equal(response.headers.get('cache-control'), 'no-store');
 });
 

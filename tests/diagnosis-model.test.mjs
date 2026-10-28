@@ -1,0 +1,73 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { buildDiagnosisReport } from '../ui/diagnosis-model.js';
+
+const company={name:'美的集团',thscode:'000333.SZ',companyType:'manufacturing'};
+const bundle={generatedAt:'2026-10-28T04:00:00Z',modules:{
+  market:{status:'ok',signals:{return60:-2,maxDrawdown60:-10}},
+  financials:{status:'ok',income:[{period_end_ms:Date.UTC(2026,5,30)}],balance:[],cashflow:[]},
+  indicators:{status:'ok',data:{abilities:[
+    {ability:'growth',indicators:[{index_id:'calculate_operating_income_yoy_growth_ratio',value:8},{index_id:'calculate_parent_holder_net_profit_yoy_growth_ratio',value:3}]},
+    {ability:'cash-flow',indicators:[{index_id:'net_profit_cash_content',value:120}]},
+    {ability:'solvency',indicators:[{index_id:'assets_debt_ratio',value:64}]},
+  ]}}
+}};
+
+test('manufacturing growth question selects and orders several relevant dimensions',()=>{
+  const report=buildDiagnosisReport(bundle,company,'增长放缓是否伴随经营质量下降？');
+  assert.equal(report.companyType,'manufacturing');
+  assert.deepEqual(report.selectedDimensions.slice(0,3).map(x=>x.dimension),['operating_quality','financial_trend','industry_position']);
+  assert.ok(report.selectedDimensions.length>=5);
+  assert.ok(report.selectedDimensions.every((x,i)=>x.priority===i+1&&x.relevanceReason&&x.availability));
+});
+
+test('cash and valuation questions use different multidimensional priorities',()=>{
+  const cash=buildDiagnosisReport(bundle,company,'现金流和负债压力如何？');
+  const valuation=buildDiagnosisReport(bundle,company,'估值在同行里处于什么位置？');
+  assert.deepEqual(cash.selectedDimensions.slice(0,3).map(x=>x.dimension),['financial_trend','risk','operating_quality']);
+  assert.deepEqual(valuation.selectedDimensions.slice(0,3).map(x=>x.dimension),['valuation','industry_position','financial_trend']);
+});
+
+test('trading questions state the research boundary without predictions or advice',()=>{
+  const report=buildDiagnosisReport(bundle,company,'现在能买吗，会涨吗？');
+  assert.equal(report.intent,'investment_boundary');
+  assert.match(report.summary,/不能.*预测|不提供.*买卖/);
+  assert.doesNotMatch(JSON.stringify(report),/建议买入|建议卖出|目标价|未来会涨/);
+});
+
+test('unknown company type degrades explicitly to general corporate',()=>{
+  const report=buildDiagnosisReport(bundle,{name:'示例公司',thscode:'000001.SZ'},'增长情况如何？');
+  assert.equal(report.companyType,'general_corporate');
+  assert.ok(report.limitations.some(x=>/公司类型/.test(x)));
+});
+
+test('every proposition separates evidence direction from epistemic status',()=>{
+  const report=buildDiagnosisReport(bundle,company,'增长情况如何？');
+  const directions=new Set(['positive','negative','conflicting','missing']);
+  const statuses=new Set(['fact','inference','unverified']);
+  assert.ok(report.propositions.length>=4);
+  for(const item of report.propositions){
+    assert.ok(directions.has(item.evidenceDirection));
+    assert.ok(statuses.has(item.epistemicStatus));
+    assert.ok(Array.isArray(item.evidenceRefs));
+    assert.ok(Array.isArray(item.limitations));
+  }
+  assert.ok(report.propositions.some(x=>x.epistemicStatus==='fact'));
+  assert.ok(report.propositions.some(x=>x.epistemicStatus==='inference'));
+  assert.ok(report.propositions.some(x=>x.epistemicStatus==='unverified'));
+});
+
+test('missing modules stay missing and do not generate normal conclusions',()=>{
+  const sparse=structuredClone(bundle);
+  sparse.modules.indicators={status:'error',error:{message:'provider failed'}};
+  const report=buildDiagnosisReport(sparse,company,'增长情况如何？');
+  assert.ok(report.propositions.some(x=>x.evidenceDirection==='missing'&&x.epistemicStatus==='unverified'));
+  assert.doesNotMatch(report.summary,/稳定|正常|健康|表现较稳/);
+});
+
+test('opposing revenue and profit directions remain conflicting',()=>{
+  const mixed=structuredClone(bundle);
+  mixed.modules.indicators.data.abilities[0].indicators[1].value=-3;
+  const report=buildDiagnosisReport(mixed,company,'增长情况如何？');
+  assert.ok(report.propositions.some(x=>x.evidenceDirection==='conflicting'));
+});
