@@ -169,9 +169,17 @@ h2, h3 { letter-spacing: -.2px; }
 .chart-svg .price-area { fill: rgba(56, 189, 248, .13); }
 .chart-svg .price-line { fill: none; stroke: var(--revenue); stroke-width: 2; }
 .chart-svg .volume { fill: #33556c; opacity: .55; }
-.chart-insight { display: flex; align-items: center; justify-content: space-between; min-height: 42px; margin: 6px 0 0; padding: 8px 12px; border-left: 3px solid var(--profit); background: #102334; font-size: 12px; }
+.chart-insight { min-height: 42px; margin: 6px 0 0; padding: 9px 12px; border-left: 3px solid var(--profit); background: #102334; font-size: 12px; }
 .chart-insight strong { font-size: 12px; }
 .chart-insight span { font-family: ui-monospace, monospace; }
+.growth-relation { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--border-soft); }
+.growth-relation i { color: var(--subtle); font-style: normal; }
+.growth-relation b { margin-left: 8px; font-weight: 700; }
+.negative-text { color: var(--negative); }
+.positive-text { color: var(--positive); }
+.conversion-chart { margin-top: 7px; }
+.conversion-chart .conversion-value { fill: var(--profit); font-size: 11px; font-weight: 700; }
+.conversion-chart .conversion-delta { fill: var(--muted); font-size: 9px; }
 .kpi-rail { grid-column: span 3; display: grid; grid-template-rows: repeat(4, 1fr); border-bottom: 1px solid var(--border-soft); background: #091b29; }
 .kpi-card { display: grid; align-content: center; gap: 2px; padding: 12px 16px; border-bottom: 1px solid var(--border-soft); }
 .kpi-card:last-child { border-bottom: 0; }
@@ -189,6 +197,9 @@ h2, h3 { letter-spacing: -.2px; }
 .balance-track { height: 8px; background: #152d3d; }
 .balance-track i { display: block; height: 100%; background: var(--assets); }
 .balance-row strong { text-align: right; font: 600 11px ui-monospace, monospace; }
+.balance-flow .flow-label, .cash-coverage .flow-label { fill: #eef6fa; font-size: 9px; font-weight: 600; }
+.balance-flow .identity { fill: #8fa8b8; font-size: 9px; }
+.cash-coverage .negative-label { fill: var(--negative); font-size: 9px; font-weight: 600; }
 .data-table { margin-top: 20px; overflow-x: auto; }
 .data-table table { width: 100%; border-collapse: collapse; font-size: 11px; }
 .data-table th, .data-table td { padding: 8px; border-bottom: 1px solid var(--border-soft); text-align: right; }
@@ -197,6 +208,12 @@ h2, h3 { letter-spacing: -.2px; }
 .mode-professional .professional-only { display: block; }
 
 .valuation-strip { display: grid; grid-template-columns: repeat(4, 1fr); margin: 13px -18px 0; border-top: 1px solid var(--border-soft); }
+.valuation-anchors { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(4, 1fr); }
+.valuation-anchor { min-height: 112px; display: grid; align-content: center; gap: 3px; padding: 14px 18px; border: 0; border-right: 1px solid var(--border-soft); background: transparent; text-align: left; cursor: pointer; }
+.valuation-anchor:last-child { border-right: 0; }
+.valuation-anchor span { color: var(--muted); font-size: 11px; }
+.valuation-anchor strong { color: var(--valuation); font: 700 22px ui-monospace, monospace; }
+.valuation-anchor small { color: var(--subtle); font-size: 9px; line-height: 1.5; }
 .valuation-card { min-height: 112px; display: grid; align-content: center; padding: 14px 18px; border-right: 1px solid var(--border-soft); }
 .valuation-card:last-child { border-right: 0; }
 .valuation-card span { color: var(--muted); font-size: 11px; }
@@ -210,6 +227,9 @@ h2, h3 { letter-spacing: -.2px; }
 .market-kpis div { display: grid; align-content: center; gap: 3px; padding: 12px; border-right: 1px solid var(--border-soft); border-bottom: 1px solid var(--border-soft); }
 .market-kpis span { color: var(--subtle); font-size: 10px; }
 .market-kpis strong { font: 600 14px ui-monospace, monospace; }
+.market-tracks .volatility-line { fill: none; stroke: var(--profit); stroke-width: 1.7; }
+.market-tracks .drawdown-line { fill: none; stroke: var(--conflicting); stroke-width: 1.7; }
+.unknown-chart { border: 1px dashed #486176; }
 .event-list { display: grid; grid-template-columns: repeat(3, 1fr); margin: 12px -18px -18px; border-top: 1px solid var(--border-soft); }
 .event-card { min-height: 130px; padding: 14px 16px; border: 0; border-right: 1px solid var(--border-soft); background: transparent; text-align: left; cursor: pointer; }
 .event-card time { color: var(--subtle); font: 10px ui-monospace, monospace; }
@@ -267,6 +287,7 @@ h2, h3 { letter-spacing: -.2px; }
   .finance-layout > article + article, .market-kpis { border-left: 0; border-top: 1px solid var(--border-soft); }
   .event-list { grid-template-columns: 1fr 1fr; }
   .valuation-strip { grid-template-columns: 1fr 1fr; }
+  .valuation-anchors { grid-template-columns: 1fr 1fr; }
   .valuation-card:nth-child(2) { border-right: 0; }
   .valuation-card:nth-child(-n+2) { border-bottom: 1px solid var(--border-soft); }
 }

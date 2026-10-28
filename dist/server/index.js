@@ -1,4 +1,4 @@
-import { page, styles, appScript, diagnosisModelScript, finscopeDataScript, dataClientScript, researchViewScript, researchProtocolScript, aiAdapterScript } from './ui.js';
+import { page, styles, appScript, diagnosisModelScript, finscopeDataScript, dataClientScript, researchViewScript, researchProtocolScript, aiAdapterScript, chartSpecScript } from './ui.js';
 import { createFuyaoClient, FuyaoError } from './fuyao.js';
 import { buildResearchBundle } from './research.js';
 import { analyzeWithAI, AIRequestError } from './ai.js';
@@ -66,6 +66,7 @@ export default {
     if (url.pathname === '/research-view.js') return response(researchViewScript, { contentType: 'text/javascript; charset=utf-8' });
     if (url.pathname === '/research-protocol.js') return response(researchProtocolScript, { contentType: 'text/javascript; charset=utf-8' });
     if (url.pathname === '/ai-adapter.js') return response(aiAdapterScript, { contentType: 'text/javascript; charset=utf-8' });
+    if (url.pathname === '/chart-spec.js') return response(chartSpecScript, { contentType: 'text/javascript; charset=utf-8' });
     if (url.pathname === '/api/health') {
       return env.FUYAO_API_KEY
         ? response({ status: 'ok', provider: 'fuyao', secretConfigured: true })

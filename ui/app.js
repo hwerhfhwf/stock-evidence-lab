@@ -2,12 +2,23 @@ import { buildWorkbench } from '/diagnosis-model.js';
 import { BYD_SNAPSHOT, createBydDemoBundle, deriveBydResearch, factsForMode } from '/finscope-data.js';
 import { createResearchClient, ResearchClientError } from '/data-client.js';
 import { normalizeResearchView } from '/research-view.js';
+import {
+  buildBalanceFlow,
+  buildCashCoverage,
+  buildMarketTracks,
+  buildProfitConversion,
+  renderBalanceFlowChart,
+  renderCashCoverageChart,
+  renderMarketTracksChart,
+  renderProfitConversionChart,
+  renderValuationAnchors,
+} from '/chart-spec.js';
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
 const client = createResearchClient(globalThis.fetch.bind(globalThis));
 const YI = 100_000_000;
-const chartColors = ['#35a9e8', '#42c7a8', '#efbd68', '#a995ef'];
+const chartColors = ['#38bdf8', '#f5b642', '#2dd4bf', '#818cf8'];
 const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
 const number = value => value === null || value === undefined || value === '' || !Number.isFinite(Number(value)) ? null : Number(value);
 const isByd = code => String(code).toUpperCase() === BYD_SNAPSHOT.meta.symbol;
@@ -206,11 +217,13 @@ function renderOperating() {
   $('#operating-kpis').innerHTML = kpis.map(item => `<div class="kpi-card"><span>${item.label}</span><strong class="${number(item.raw) > 0 && /同比/.test(item.label) ? 'up' : number(item.raw) < 0 ? 'down' : ''}">${item.value}</strong><small>${esc(item.note)}</small></div>`).join('');
   $('#operating-period').textContent = rows.length ? `${reportLabel(rows[0])} — ${reportLabel(rows.at(-1))} · ${state.view.financials.quarters?.length ? '单季换算' : '年度口径'}` : '报告期数据不可用';
   const insight = $('#operating-insight');
+  const conversion = buildProfitConversion(rows.slice(-2).map(row => ({ label: reportLabel(row), revenue: row.revenue, parentProfit: row.parentProfit })));
+  const conversionChart = renderProfitConversionChart(conversion, isByd(state.view.company.thscode) ? ['H126'] : []);
   if (revenueGrowth !== null && profitGrowth !== null) {
     const gap = profitGrowth - revenueGrowth;
-    insight.innerHTML = `<strong>利润与收入增速差</strong><span>${profitGrowth.toFixed(1)}% − ${revenueGrowth.toFixed(1)}% = <b class="${gap < 0 ? 'down' : 'up'}">${gap > 0 ? '+' : ''}${gap.toFixed(1)} 个百分点</b></span>`;
+    insight.innerHTML = `<div class="growth-relation"><strong>利润变化弱于收入</strong><span>营收 ${formatPct(revenueGrowth, 1)} <i>→</i> 归母净利润 ${formatPct(profitGrowth, 1)} <b class="${gap < 0 ? 'negative-text' : 'positive-text'}">差 ${gap > 0 ? '+' : ''}${gap.toFixed(1)}pp</b></span></div>${conversionChart}`;
   } else {
-    insight.textContent = rows.length ? '图中金额可核对；同比财务指标暂不完整。' : '财务报表模块暂不可用。';
+    insight.innerHTML = rows.length ? conversionChart : '财务报表模块暂不可用。';
   }
 }
 
@@ -246,7 +259,10 @@ function latestBalance() {
 
 function renderFinance() {
   const cRows = cashRows();
-  $('#cash-chart').innerHTML = renderCashChart(cRows);
+  if (isByd(state.view.company.thscode)) {
+    const annual = BYD_SNAPSHOT.annual.find(row => row.year === 2025);
+    $('#cash-chart').innerHTML = renderCashCoverageChart(buildCashCoverage({ cfo: annual.cfo / YI, capex: annual.capexCash / YI }), ['annual-cfo', 'capex-cash']);
+  } else $('#cash-chart').innerHTML = renderCashChart(cRows);
   const balance = latestBalance();
   if (!balance) {
     const fallback = isByd(state.view.company.thscode) ? BYD_SNAPSHOT.balance[2025] : null;
@@ -266,25 +282,19 @@ function renderFinance() {
 }
 
 function renderBalanceRows(values) {
-  const assets = number(values.assets);
-  const liabilities = number(values.liabilities);
-  const rows = [
-    { label: '资产总额', value: assets, ratio: 100 },
-    { label: '负债总额', value: liabilities, ratio: assets && liabilities !== null ? liabilities / assets * 100 : null },
-    { label: '流动资产', value: number(values.currentAssets), ratio: assets && number(values.currentAssets) !== null ? number(values.currentAssets) / assets * 100 : null },
-    { label: '货币资金', value: number(values.cash), ratio: assets && number(values.cash) !== null ? number(values.cash) / assets * 100 : null },
-  ];
-  $('#balance-chart').innerHTML = `<div class="balance-list">${rows.map(row => `<div class="balance-row"><span>${row.label}</span><div class="balance-track"><i style="width:${Math.max(0, Math.min(100, row.ratio ?? 0))}%"></i></div><strong>${formatYi(row.value, 0)}</strong></div>`).join('')}</div>`;
+  const inYi = value => number(value) === null ? null : number(value) / YI;
+  const model = buildBalanceFlow({ assets: inYi(values.assets), liabilities: inYi(values.liabilities), currentAssets: inYi(values.currentAssets), cash: inYi(values.cash) });
+  $('#balance-chart').innerHTML = renderBalanceFlowChart(model, isByd(state.view.company.thscode) ? ['AR25'] : []);
 }
 
 function renderValuation() {
   const metrics = [
-    { label: '市盈率', key: 'peTtm', suffix: '×', basis: 'PE · TTM' },
-    { label: '市净率', key: 'pbMrq', suffix: '×', basis: 'PB · MRQ' },
-    { label: '市销率', key: 'psTtm', suffix: '×', basis: 'PS · TTM' },
-    { label: '市现率', key: 'pcfTtm', suffix: '×', basis: 'PCF · TTM' },
+    { key: 'PE', value: number(state.view.valuation.peTtm) },
+    { key: 'PB', value: number(state.view.valuation.pbMrq) },
+    { key: 'PS', value: number(state.view.valuation.psTtm) },
+    { key: 'PCF', value: number(state.view.valuation.pcfTtm) },
   ];
-  $('#valuation-strip').innerHTML = metrics.map(metric => `<div class="valuation-card"><span>${metric.label}</span><strong>${formatMetric(state.view.valuation[metric.key], metric.suffix, 2)}</strong><small>${metric.basis}${state.view.valuation.timestamp ? ` · ${formatDate(state.view.valuation.timestamp)}` : ''}</small></div>`).join('');
+  $('#valuation-strip').innerHTML = renderValuationAnchors(metrics, []);
   $('#industry-state').textContent = state.view.industry.status === 'ok' ? '行业数据已接入。' : '行业映射尚未接入，暂不生成同行排名。';
 }
 
@@ -320,7 +330,7 @@ export function renderMarketChart(series) {
 }
 
 function renderMarket() {
-  $('#market-chart').innerHTML = renderMarketChart(state.view.market.series);
+  $('#market-chart').innerHTML = renderMarketTracksChart(buildMarketTracks(state.view.market.series), []);
   const signals = state.view.market.signals ?? {};
   const metrics = [
     ['20 日收益', formatPct(signals.return20)],

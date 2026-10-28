@@ -52,3 +52,9 @@ test('normalizeResearchView labels the BYD disclosure fallback and never present
   assert.equal(Number(view.indicators.values.calculate_parent_holder_net_profit_yoy_growth_ratio.toFixed(2)), -20.54);
 });
 
+test('normalized financial view exposes synchronized revenue profit and cash periods', () => {
+  const view = normalizeResearchView(null, { name: '比亚迪', thscode: '002594.SZ' }, BYD_SNAPSHOT);
+  assert.deepEqual(view.financials.annualSeries.map(row => row.label), ['2023', '2024', '2025']);
+  assert.ok(view.financials.annualSeries.every(row => Number.isFinite(row.revenue) && Number.isFinite(row.parentProfit) && Number.isFinite(row.cfo)));
+});
+
