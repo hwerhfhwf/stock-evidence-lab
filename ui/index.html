@@ -58,6 +58,7 @@
         <div id="ai-settings-panel" class="ai-settings-panel" hidden><label>兼容接口<input id="ai-endpoint" type="url" placeholder="https://api.example.com/v1"></label><label>模型<input id="ai-model" placeholder="模型名称"></label><label>临时 API Key<input id="ai-key" type="password" autocomplete="off" placeholder="仅本次页面使用"></label><button id="ai-connect" type="button">使用此连接</button></div>
         <nav id="dimension-rail" class="dimension-rail" aria-label="本次研究维度"><a data-dimension="operating_quality" href="#operating">经营与盈利</a><a data-dimension="financial_trend" href="#finance">财务与现金</a><a data-dimension="valuation" href="#valuation">估值与预期</a><a data-dimension="market_characteristics" href="#market">市场表现</a><a data-dimension="industry_position" href="#valuation">行业位置</a><a data-dimension="material_events" href="#events">事件与风险</a></nav>
         <section id="priority-result" class="priority-result" role="status" aria-live="polite" hidden></section>
+        <section id="research-claims" class="claim-layer" aria-live="polite"></section>
 
         <div class="research-canvas">
           <section id="business" class="canvas-section business-section section-anchor" aria-labelledby="business-title">
@@ -90,7 +91,9 @@
           </section>
 
           <section id="events" class="canvas-section research-section events-section section-anchor" aria-labelledby="events-title">
-            <header class="section-heading"><div><p class="eyebrow">REPORTS / RISKS</p><h2 id="events-title">事件与风险</h2><p>沿报告日期查看变量变化与尚待验证事项</p></div></header><div id="event-list" class="event-list"></div>
+            <header class="section-heading"><div><p class="eyebrow">REPORTS / RISKS</p><h2 id="events-title">事件与风险</h2><p>沿报告日期查看变量变化与尚待验证事项</p></div></header>
+            <div class="report-risk-layout"><nav id="report-timeline" class="report-timeline" aria-label="报告时间线"></nav><div id="risk-map" class="risk-map"></div></div>
+            <div id="event-list" class="event-list"></div>
           </section>
         </div>
 

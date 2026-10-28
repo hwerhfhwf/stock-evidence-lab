@@ -75,3 +75,9 @@ test('palette assigns distinct semantic variables without gradients as decoratio
   }
   assert.doesNotMatch(css, /background:\s*(?:linear|radial)-gradient/);
 });
+
+test('claim layer and report risk map are visible research structures', () => {
+  for (const id of ['research-claims', 'report-timeline', 'risk-map']) assert.match(html, new RegExp(`id="${id}"`), id);
+  assert.match(css, /\.evidence-direction\.conflicting/);
+  assert.match(css, /\.epistemic-marker\.inference/);
+});

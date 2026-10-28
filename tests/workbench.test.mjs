@@ -63,3 +63,14 @@ test('simple and professional modes share facts and differ only in depth',()=>{
  assert.equal(simple.evidence.length,0);
  assert.equal(professional.evidence.length,research.evidence.length);
 });
+
+test('browser workbench renders four evidence directions as attributes of a claim', async () => {
+ const app=await import('node:fs/promises').then(fs=>fs.readFile(new URL('../ui/app.js',import.meta.url),'utf8'));
+ for(const token of ['buildSourcePackage','buildResearchClaims','positive','negative','conflicting','unknown','指标方向分化']) assert.match(app,new RegExp(token));
+ assert.doesNotMatch(app,/正面证据<\/h[23]>[\s\S]*负面证据<\/h[23]>[\s\S]*矛盾证据<\/h[23]>[\s\S]*未知证据<\/h[23]>/);
+});
+
+test('browser workbench provides every required drilldown target', async () => {
+ const app=await import('node:fs/promises').then(fs=>fs.readFile(new URL('../ui/app.js',import.meta.url),'utf8'));
+ for(const token of ['financial_period','market_interval','peer_comparison','verification_question','openClaimDrilldown']) assert.match(app,new RegExp(token));
+});
