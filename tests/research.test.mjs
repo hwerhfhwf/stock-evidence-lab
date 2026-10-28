@@ -80,3 +80,25 @@ test('buildResearchBundle keeps Fuyao modules available when optional iFinD cont
   assert.equal(bundle.modules.context.status, 'unavailable');
   assert.equal(bundle.modules.context.errors[0].code, 'ifind_rate_limited');
 });
+
+test('buildResearchBundle keeps a source-bound company profile alongside live financial modules', async () => {
+  const ok = data => Promise.resolve({ data, requestId: 'ok-id' });
+  const client = {
+    snapshot: () => ok({ timestamp: 10, item: [{ thscode: '000333.SZ', last_price: 80 }] }),
+    historical: () => ok({ timestamp: 10, item: [{ date_ms: 1, close_price: 80 }] }),
+    incomeStatements: () => ok({ item: [{ period_end_ms: Date.UTC(2026, 5, 30), operating_income: 100 }] }),
+    balanceSheets: () => ok({ item: [] }), cashFlowStatements: () => ok({ item: [] }),
+    indicators: () => ok({ report: '2026-2', abilities: [] }), valuations: () => ok({ timestamp: 10, item: [] }),
+  };
+  const bundle = await buildResearchBundle(client, '000333.SZ', Date.UTC(2026, 9, 28), {
+    profileProvider: async code => ({
+      status: 'ok',
+      data: { name: '美的集团', industry: '家电-白色家电', summary: '智能家居与工业技术。', businessScope: '家电研发制造销售。' },
+      source: { id: `PROFILE:${code}`, name: '公司概况', url: 'https://example.test/profile', disclosed: '2026-10-28', sourceType: 'company_profile' },
+      errors: [],
+    }),
+  });
+  assert.equal(bundle.modules.profile.status, 'ok');
+  assert.equal(bundle.modules.profile.data.industry, '家电-白色家电');
+  assert.equal(bundle.modules.financials.status, 'ok');
+});

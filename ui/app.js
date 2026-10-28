@@ -25,6 +25,13 @@ const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&a
 const number = value => value === null || value === undefined || value === '' || !Number.isFinite(Number(value)) ? null : Number(value);
 const isByd = code => String(code).toUpperCase() === BYD_SNAPSHOT.meta.symbol;
 
+function inferCompanyType(profile = {}, name = '') {
+  const text = `${profile.industry ?? ''} ${profile.summary ?? ''} ${name}`;
+  if (/银行|证券|保险|多元金融/.test(text)) return 'bank';
+  if (/制造|家电|汽车|机械|设备|电子|半导体|化工|医药|食品|材料|工业/.test(text)) return 'manufacturing';
+  return 'general_corporate';
+}
+
 const state = {
   company: { name: '比亚迪', thscode: '002594.SZ', companyType: 'manufacturing' },
   bundle: createBydDemoBundle(BYD_SNAPSHOT),
@@ -57,6 +64,7 @@ function resetAIResearchState() {
   state.aiPreview = null;
   state.customCharts = [];
   state.researchHistory = [];
+  state.activeReport = null;
 }
 
 refreshResearchProtocol();
@@ -148,14 +156,31 @@ function renderQuote() {
 
 function renderBusiness() {
   const byd = isByd(state.view.company.thscode);
-  $('#business-summary').textContent = byd
-    ? '以新能源汽车为核心，业务延伸至动力电池、储能、光伏与电子制造；汽车及相关产品是主要收入来源。'
-    : `${state.view.company.name}的业务构成数据尚未接入当前数据包，财务与行情模块仍可独立研究。`;
-  $('#business-scope').textContent = byd ? '集团合并' : '财务报表口径';
-  $('#business-lines').textContent = byd ? '汽车 · 电子制造' : '业务构成待披露数据';
+  const profile = state.view.profile ?? {};
+  const summary = profile.summary || (byd ? '以新能源汽车为核心，业务延伸至动力电池、储能、光伏与电子制造；汽车及相关产品是主要收入来源。' : `${state.view.company.name}的公司概况暂不可用。`);
+  $('#business-summary').textContent = summary.length > 104 ? `${summary.slice(0, 104)}…` : summary;
+  $('#business-summary').title = summary;
+  $('#business-scope').textContent = profile.status === 'ok' ? '公司概况 · 合并报表' : byd ? '集团合并' : '财务报表口径';
+  $('#business-lines').textContent = profile.industry ? profile.industry.split('-').slice(-2).join(' · ') : byd ? '汽车 · 电子制造' : '行业分类待核验';
   $('#business-listing').textContent = state.view.company.thscode.endsWith('.SH') ? '上交所 A 股' : state.view.company.thscode.endsWith('.BJ') ? '北交所 A 股' : '深交所 A 股';
   $('#composition-period').textContent = state.view.revenueComposition.period ? `${state.view.revenueComposition.period} 年` : '暂无可比口径';
   $('#composition-note').textContent = state.view.revenueComposition.status === 'ok' ? '公开披露 · 按集团分产品收入' : '当前数据包未包含分部收入';
+  $('#business-visual').innerHTML = renderBusinessHeroVisual(state.view);
+}
+
+function renderBusinessHeroVisual(view) {
+  const series = (view?.market?.series ?? []).filter(point => number(point.close_price) !== null).slice(-90);
+  const name = view?.company?.name ?? '';
+  const code = view?.company?.thscode ?? '';
+  if (series.length < 2) return `<div class="hero-monogram"><strong>${esc(name)}</strong><span>${esc(code)}</span></div>`;
+  const values = series.map(point => number(point.close_price));
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const x = index => 24 + index / (series.length - 1) * 652;
+  const y = value => 58 + (max - value) / Math.max(.0001, max - min) * 150;
+  const points = values.map((value, index) => `${x(index).toFixed(1)},${y(value).toFixed(1)}`).join(' ');
+  const area = `24,220 ${points} 676,220`;
+  return `<svg viewBox="0 0 720 280" role="img" aria-label="${esc(name)}近 90 个交易日价格轨迹"><path d="M24 58H676M24 112H676M24 166H676M24 220H676" class="hero-grid"/><polygon points="${area}" class="hero-area"/><polyline points="${points}" class="hero-line"/><text x="676" y="242" text-anchor="end" class="hero-latest">${esc(code)} · ${esc(formatPrice(values.at(-1)))}</text></svg>`;
 }
 
 export function renderDonutChart(composition) {
@@ -282,9 +307,17 @@ function latestBalance() {
 
 function renderFinance() {
   const cRows = cashRows();
-  if (isByd(state.view.company.thscode)) {
+  const latestCash = [...(state.view.financials.cashflow ?? [])]
+    .sort((a, b) => number(a.period_end_ms ?? a.period_end) - number(b.period_end_ms ?? b.period_end))
+    .at(-1);
+  const liveCoverage = latestCash && number(latestCash.act_cash_flow_net) !== null && number(latestCash.pay_fixed_assets_etc_cash) !== null
+    ? buildCashCoverage({ cfo: number(latestCash.act_cash_flow_net) / YI, capex: number(latestCash.pay_fixed_assets_etc_cash) / YI, periodLabel: statementPeriod(latestCash) })
+    : null;
+  if (liveCoverage) {
+    $('#cash-chart').innerHTML = renderCashCoverageChart(liveCoverage, []);
+  } else if (isByd(state.view.company.thscode) && state.view.sourceState.mode === 'fallback') {
     const annual = BYD_SNAPSHOT.annual.find(row => row.year === 2025);
-    $('#cash-chart').innerHTML = renderCashCoverageChart(buildCashCoverage({ cfo: annual.cfo / YI, capex: annual.capexCash / YI }), ['annual-cfo', 'capex-cash']);
+    $('#cash-chart').innerHTML = renderCashCoverageChart(buildCashCoverage({ cfo: annual.cfo / YI, capex: annual.capexCash / YI, periodLabel: '2025FY' }), ['annual-cfo', 'capex-cash']);
   } else $('#cash-chart').innerHTML = renderCashChart(cRows);
   const balance = latestBalance();
   if (!balance) {
@@ -493,8 +526,110 @@ async function runAIResearch(question) {
   }
 }
 
+function statementTime(row) {
+  return number(row?.report_date_ms ?? row?.report_date ?? row?.announcement_date_ms ?? row?.period_end_ms ?? row?.period_end) ?? 0;
+}
+
+function statementPeriod(row) {
+  if (row?.fiscal_year && row?.fiscal_period) return `${row.fiscal_year}${String(row.fiscal_period).toUpperCase()}`;
+  const time = statementTime(row);
+  return time ? new Date(time).toISOString().slice(0, 10) : '报告期未知';
+}
+
+function buildLiveReportEntries() {
+  const seenDisclosure = new Set();
+  return [...(state.view.financials.income ?? [])]
+    .sort((a, b) => statementTime(b) - statementTime(a) || Number(b.fiscal_year ?? 0) - Number(a.fiscal_year ?? 0) || String(b.fiscal_period ?? '').localeCompare(String(a.fiscal_period ?? '')))
+    .filter(row => {
+      const disclosed = statementTime(row) || statementPeriod(row);
+      if (seenDisclosure.has(disclosed)) return false;
+      seenDisclosure.add(disclosed);
+      return true;
+    })
+    .slice(0, 8)
+    .map(row => {
+      const period = statementPeriod(row);
+      return {
+        id: `REPORT:${period}`,
+        name: `${state.view.company.name} ${period} 财务期次`,
+        disclosed: formatDate(statementTime(row)),
+        period,
+        publisher: '同花顺扶摇金融数据 API',
+        unitNote: '公司合并财务报表 · 累计口径 · 金额单位元',
+        url: 'https://fuyao.aicubes.cn/docs/api-reference/financial-statements/',
+        sourceType: 'market_data_api',
+      };
+    });
+}
+
+function priorComparable(rows, current) {
+  if (!current) return null;
+  if (current.fiscal_year && current.fiscal_period) {
+    return rows.find(row => Number(row.fiscal_year) === Number(current.fiscal_year) - 1 && String(row.fiscal_period).toUpperCase() === String(current.fiscal_period).toUpperCase()) ?? null;
+  }
+  const currentDate = new Date(statementTime(current));
+  return rows.find(row => {
+    const date = new Date(statementTime(row));
+    return date.getUTCFullYear() === currentDate.getUTCFullYear() - 1 && date.getUTCMonth() === currentDate.getUTCMonth();
+  }) ?? null;
+}
+
+function growthRate(current, prior) {
+  const a = number(current);
+  const b = number(prior);
+  return a === null || b === null || b === 0 ? null : (a / b - 1) * 100;
+}
+
+function movementDirection(value) {
+  const n = number(value);
+  return n === null ? 'unknown' : n > 0 ? 'positive' : n < 0 ? 'negative' : 'conflicting';
+}
+
+function liveReportMetrics(sourceId) {
+  const period = String(sourceId).replace(/^REPORT:/, '');
+  const incomeRows = state.view.financials.income ?? [];
+  const cashRows = state.view.financials.cashflow ?? [];
+  const currentIncome = incomeRows.find(row => statementPeriod(row) === period);
+  if (!currentIncome) return null;
+  const priorIncome = priorComparable(incomeRows, currentIncome);
+  const currentCash = cashRows.find(row => statementPeriod(row) === period);
+  const priorCash = priorComparable(cashRows, currentCash);
+  const revenueGrowth = growthRate(currentIncome.operating_income, priorIncome?.operating_income);
+  const profitGrowth = growthRate(currentIncome.parent_holder_net_profit, priorIncome?.parent_holder_net_profit);
+  const cashGrowth = growthRate(currentCash?.act_cash_flow_net, priorCash?.act_cash_flow_net);
+  const currentRevenue = number(currentIncome.operating_income);
+  const priorRevenue = number(priorIncome?.operating_income);
+  const currentProfit = number(currentIncome.parent_holder_net_profit);
+  const priorProfit = number(priorIncome?.parent_holder_net_profit);
+  const currentMargin = currentRevenue && currentProfit !== null ? currentProfit / currentRevenue * 100 : null;
+  const priorMargin = priorRevenue && priorProfit !== null ? priorProfit / priorRevenue * 100 : null;
+  const marginDelta = currentMargin !== null && priorMargin !== null ? currentMargin - priorMargin : null;
+  const nodes = [
+    { label: '营业收入同比', value: formatPct(revenueGrowth, 1), direction: movementDirection(revenueGrowth) },
+    { label: '归母净利润同比', value: formatPct(profitGrowth, 1), direction: movementDirection(profitGrowth) },
+    { label: '经营现金同比', value: formatPct(cashGrowth, 1), direction: movementDirection(cashGrowth) },
+    { label: '归母净利率', value: currentMargin === null ? '暂无数据' : priorMargin === null ? `${currentMargin.toFixed(2)}%` : `${priorMargin.toFixed(2)}% → ${currentMargin.toFixed(2)}%`, direction: movementDirection(marginDelta) },
+  ];
+  const links = [];
+  if (revenueGrowth !== null && profitGrowth !== null) {
+    const gap = profitGrowth - revenueGrowth;
+    links.push({ text: `利润增速 ${gap < 0 ? '<' : gap > 0 ? '>' : '='} 营收增速 ${Math.abs(gap).toFixed(1)}pp`, direction: movementDirection(gap) });
+  }
+  if (profitGrowth !== null && cashGrowth !== null && Math.sign(profitGrowth) !== Math.sign(cashGrowth)) {
+    links.push({ text: '归母利润与经营现金方向分化', direction: 'conflicting' });
+  }
+  if (marginDelta !== null) links.push({ text: `归母净利率 ${marginDelta > 0 ? '+' : ''}${marginDelta.toFixed(2)}pp`, direction: movementDirection(marginDelta) });
+  const unknown = [];
+  if (state.view.context.status === 'unavailable') unknown.push('外部事件影响');
+  if (!state.view.revenueComposition?.items?.length) unknown.push('产品与地区收入贡献');
+  if (indicatorValue('sale_gross_margin') === null) unknown.push('毛利率同口径变化');
+  if (!links.length) unknown.push('同比可比期数据');
+  return { period, nodes, links, unknown: unknown.length ? unknown : ['费用与业务结构贡献'] };
+}
+
 function reportMetrics(sourceId) {
-  if (!isByd(state.view.company.thscode)) return null;
+  if (String(sourceId).startsWith('REPORT:')) return liveReportMetrics(sourceId);
+  if (!(isByd(state.view.company.thscode) && state.view.sourceState.mode === 'fallback')) return null;
   if (sourceId === 'H126') {
     const metrics = state.research.metrics;
     const priorMargin = BYD_SNAPSHOT.half[2025].parentProfit / BYD_SNAPSHOT.half[2025].revenue * 100;
@@ -532,14 +667,18 @@ function reportMetrics(sourceId) {
 }
 
 function renderEvents() {
-  const sources = state.sourcePackage.sources.slice().sort((a, b) => String(b.disclosed).localeCompare(String(a.disclosed)));
+  const sources = state.view.sourceState.mode === 'live'
+    ? buildLiveReportEntries()
+    : state.sourcePackage.sources.filter(source => source.sourceType !== 'market_data_api').slice().sort((a, b) => String(b.disclosed).localeCompare(String(a.disclosed)));
+  for (const source of sources) sourceById.set(source.id, source);
   if (!sources.some(source => source.id === state.activeReport)) state.activeReport = sources[0]?.id ?? null;
-  $('#report-timeline').innerHTML = sources.map(source => `<button type="button" class="report-node ${source.id === state.activeReport ? 'selected' : ''}" data-report="${esc(source.id)}"><time>${esc(source.disclosed)}</time><span>${esc(source.name.replace(/^比亚迪\s*/, ''))}</span></button>`).join('');
+  $('#report-timeline').innerHTML = sources.map(source => `<button type="button" class="report-node ${source.id === state.activeReport ? 'selected' : ''}" data-report="${esc(source.id)}"><time>${esc(source.disclosed)}</time><span>${esc(source.name.replace(new RegExp(`^${state.view.company.name}\\s*`), ''))}</span></button>`).join('');
   const source = sourceById.get(state.activeReport);
   const graph = reportMetrics(state.activeReport);
-  $('#risk-map').innerHTML = source && graph ? `<header><div><small>${esc(graph.period)}</small><strong>${esc(source.name)}</strong></div><button type="button" data-source="${esc(source.id)}">原报告 →</button></header>
+  const sourceLabel = source?.sourceType === 'market_data_api' ? '字段与出处 →' : '原报告 →';
+  $('#risk-map').innerHTML = source && graph ? `<header><div><small>${esc(graph.period)}</small><strong>${esc(source.name)}</strong></div><button type="button" data-source="${esc(source.id)}">${sourceLabel}</button></header>
     <div class="risk-node-row">${graph.nodes.map(node => `<div class="risk-node ${node.direction}"><span>${esc(node.label)}</span><strong>${esc(node.value)}</strong></div>`).join('')}</div>
-    <div class="risk-links">${graph.links.map(link => `<span class="${link.direction}">${esc(link.text)}</span>`).join('')}</div>
+    ${graph.links.length ? `<div class="risk-links">${graph.links.map(link => `<span class="${link.direction}">${esc(link.text)}</span>`).join('')}</div>` : ''}
     <div class="risk-unknown"><span class="epistemic-marker unverified"></span><strong>待验证</strong>${graph.unknown.map(item => `<button type="button" data-field-refs="">${esc(item)}</button>`).join('')}</div>`
     : source ? `<div class="report-empty"><strong>${esc(source.name)}</strong><span>已保留原报告；当前数据包尚未抽取可复算的风险变量。</span><button type="button" data-source="${esc(source.id)}">打开原报告</button></div>` : emptyState('报告时间线暂不可用');
   const cards = [];
@@ -671,9 +810,11 @@ async function loadCompany(company, { initial = false } = {}) {
   setBusy(true, `正在加载${company.name || company.thscode}`);
   try {
     const bundle = await client.research(company);
-    state.company = { ...company, companyType: isByd(company.thscode) ? 'manufacturing' : 'general' };
     state.bundle = bundle;
     state.view = normalizeResearchView(bundle, company, isByd(company.thscode) ? BYD_SNAPSHOT : null);
+    const companyType = inferCompanyType(state.view.profile, state.view.company.name);
+    state.company = { ...company, companyType };
+    state.view.company.companyType = companyType;
     resetAIResearchState();
     refreshResearchProtocol();
     $('#stock-search').value = `${state.view.company.name} · ${state.view.company.thscode}`;

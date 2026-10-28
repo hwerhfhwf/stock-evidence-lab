@@ -57,7 +57,10 @@ export function buildSourcePackage(view, fallback = null) {
     sourceType: 'primary_disclosure',
   }));
   const generatedAt = view?.sourceState?.generatedAt ?? fallback?.meta?.informationCutoff ?? null;
-  if (!sources.length) {
+  if (view?.profile?.status === 'ok' && view.profile.source?.id && !sources.some(source => source.id === view.profile.source.id)) {
+    sources.push({ ...view.profile.source, sourceType: view.profile.source.sourceType ?? 'company_profile' });
+  }
+  if (view?.sourceState?.mode === 'live' || !sources.length) {
     sources.push({
       id: 'FUYAO',
       name: '同花顺扶摇金融数据 API',
@@ -79,8 +82,61 @@ export function buildSourcePackage(view, fallback = null) {
   add({ id: 'metric:profit-growth', label: '归母净利润同比', value: values.calculate_parent_holder_net_profit_yoy_growth_ratio, unit: '%', fieldName: 'calculate_parent_holder_net_profit_yoy_growth_ratio', ...commonIndicator });
   add({ id: 'metric:cash-content', label: '每百元归母利润对应经营现金', value: values.net_profit_cash_content, unit: '元/100元利润', fieldName: 'net_profit_cash_content', ...commonIndicator });
   add({ id: 'metric:debt-ratio', label: '资产负债率', value: values.assets_debt_ratio, unit: '%', fieldName: 'assets_debt_ratio', period: report, scope: '报告期末时点口径', sourceRefs: [indicatorSource] });
+  for (const [id, label, key, unit] of [
+    ['metric:gross-margin', '销售毛利率', 'sale_gross_margin', '%'],
+    ['metric:net-margin', '销售净利率', 'sale_net_interest_ratio', '%'],
+    ['metric:roe', '加权净资产收益率', 'index_weighted_avg_roe', '%'],
+    ['metric:current-ratio', '流动比率', 'current_ratio', '倍'],
+    ['metric:quick-ratio', '速动比率', 'quick_ratio', '倍'],
+    ['metric:asset-turnover', '总资产周转率', 'total_assets_turnover_ratio', '次'],
+    ['metric:inventory-turnover', '存货周转率', 'inventory_turnover_ratio', '次'],
+    ['metric:operating-cash-sales', '销售现金比率', 'operating_cash_flow_net_divide_income', '%'],
+    ['metric:cash-invest-cover', '现金满足投资比率', 'cash_meet_invest_ratio', '%'],
+  ]) add({ id, label, value: values[key], unit, fieldName: key, ...commonIndicator });
 
-  if (fallback?.half?.[2025] && fallback?.half?.[2026]) {
+  const periodKey = row => row?.fiscal_year && row?.fiscal_period ? `${row.fiscal_year}${String(row.fiscal_period).toUpperCase()}` : String(row?.period_end_ms ?? row?.period_end ?? 'unknown');
+  const rowTime = row => numberOrNull(row?.period_end_ms ?? row?.period_end) ?? 0;
+  const incomeRows = [...(view?.financials?.income ?? [])].sort((a, b) => rowTime(a) - rowTime(b));
+  const cashRows = [...(view?.financials?.cashflow ?? [])].sort((a, b) => rowTime(a) - rowTime(b));
+  const balanceRows = [...(view?.financials?.balance ?? [])].sort((a, b) => rowTime(a) - rowTime(b));
+  const addStatementRows = (rows, kind, fieldsByName, scope) => {
+    for (const row of rows.slice(-8)) {
+      const period = periodKey(row);
+      for (const [fieldName, label, unit] of fieldsByName) add({
+        id: `statement:${kind}:${period}:${fieldName}`,
+        label,
+        value: row?.[fieldName],
+        unit,
+        period,
+        scope,
+        sourceRefs: [indicatorSource],
+        fieldName,
+      });
+    }
+  };
+  addStatementRows(incomeRows, 'income', [['operating_income', '营业收入', '元'], ['parent_holder_net_profit', '归母净利润', '元'], ['operating_costs', '营业成本', '元'], ['sales_fee', '销售费用', '元'], ['manage_fee', '管理费用', '元'], ['research_and_development_expenses', '研发费用', '元']], '公司合并报表 · 累计口径');
+  addStatementRows(cashRows, 'cashflow', [['act_cash_flow_net', '经营活动现金流净额', '元'], ['pay_fixed_assets_etc_cash', '购建长期资产支付现金', '元']], '公司合并现金流量表 · 累计口径');
+  addStatementRows(balanceRows, 'balance', [['assets_total', '资产总计', '元'], ['total_debt', '负债合计', '元'], ['holder_equity_total', '所有者权益合计', '元'], ['cash', '货币资金', '元'], ['accounts_receivable', '应收账款', '元']], '公司合并资产负债表 · 期末时点');
+
+  const latestIncome = incomeRows.at(-1);
+  const priorIncome = latestIncome ? incomeRows.find(row => Number(row.fiscal_year) === Number(latestIncome.fiscal_year) - 1 && row.fiscal_period === latestIncome.fiscal_period) : null;
+  if (latestIncome && priorIncome) {
+    const latestRevenue = numberOrNull(latestIncome.operating_income);
+    const priorRevenue = numberOrNull(priorIncome.operating_income);
+    const latestProfit = numberOrNull(latestIncome.parent_holder_net_profit);
+    const priorProfit = numberOrNull(priorIncome.parent_holder_net_profit);
+    add({ id: 'metric:parent-margin-prior', label: '归母净利率', value: priorRevenue ? priorProfit / priorRevenue * 100 : null, unit: '%', period: periodKey(priorIncome), scope: '公司合并报表 · 累计口径', sourceRefs: [indicatorSource], fieldName: 'parent_holder_net_profit / operating_income' });
+    add({ id: 'metric:parent-margin-current', label: '归母净利率', value: latestRevenue ? latestProfit / latestRevenue * 100 : null, unit: '%', period: periodKey(latestIncome), scope: '公司合并报表 · 累计口径', sourceRefs: [indicatorSource], fieldName: 'parent_holder_net_profit / operating_income' });
+  }
+  const latestCash = cashRows.at(-1);
+  const priorCash = latestCash ? cashRows.find(row => Number(row.fiscal_year) === Number(latestCash.fiscal_year) - 1 && row.fiscal_period === latestCash.fiscal_period) : null;
+  if (latestCash && priorCash) {
+    const current = numberOrNull(latestCash.act_cash_flow_net);
+    const prior = numberOrNull(priorCash.act_cash_flow_net);
+    add({ id: 'metric:operating-cash-growth', label: '经营现金同比', value: current !== null && prior ? (current / prior - 1) * 100 : null, unit: '%', period: periodKey(latestCash), scope: '公司合并现金流量表 · 累计口径', sourceRefs: [indicatorSource], fieldName: 'act_cash_flow_net' });
+  }
+
+  if (view?.sourceState?.mode === 'fallback' && fallback?.half?.[2025] && fallback?.half?.[2026]) {
     const prior = fallback.half[2025];
     const current = fallback.half[2026];
     add({ id: 'metric:operating-cash-growth', label: '经营现金同比', value: (current.cfo / prior.cfo - 1) * 100, unit: '%', period: '2026H1', scope: fallback.meta.scope, sourceRefs: [sourceById(sources, 'H126')], fieldName: 'act_cash_flow_net' });
@@ -113,6 +169,13 @@ export function buildSourcePackage(view, fallback = null) {
     fields: fields.map(field => field.value === null ? { ...field, status: 'unavailable' } : { ...field, value: round(field.value) }),
     marketSeries: Array.isArray(view?.market?.series) ? view.market.series.map(point => ({ ...point })) : [],
     peers: Array.isArray(view?.industry?.data?.peers) ? view.industry.data.peers.map(peer => ({ ...peer })) : [],
+    profile: view?.profile?.status === 'ok' ? {
+      name: view.profile.name,
+      industry: view.profile.industry,
+      summary: view.profile.summary,
+      businessScope: view.profile.businessScope,
+      sourceRefs: view.profile.source?.id ? [view.profile.source.id] : [],
+    } : null,
     sources,
   };
 }
@@ -194,7 +257,7 @@ export function buildResearchClaims(sourcePackage) {
     evidenceGroups: groups,
     sourceRefs: [...new Set([...groups.positive, ...groups.negative, ...groups.conflicting].flatMap(item => item.evidenceRefs))],
     drilldowns: [
-      { type: 'financial_period', label: '查看 2026H1 财务期次', period: revenue?.period ?? profit?.period ?? '2026H1', evidenceRefs: growthRefs },
+      { type: 'financial_period', label: `查看 ${revenue?.period ?? profit?.period ?? '最新'} 财务期次`, period: revenue?.period ?? profit?.period ?? 'unknown', evidenceRefs: growthRefs },
       { type: 'verification_question', label: '待验证：费用率、单车盈利与产品结构', requiredFields: ['expense_ratio', 'single_vehicle_profit', 'product_mix'] },
     ],
     limitations: ['指标方向分化不等于来源内容冲突'],

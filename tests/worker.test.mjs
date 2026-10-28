@@ -89,6 +89,9 @@ test('research endpoint returns safe company metadata and provider module states
   const previousFetch = globalThis.fetch;
   globalThis.fetch = async (url) => {
     const path = new URL(url).pathname;
+    if (path.includes('/CompanySurvey/PageAjax')) {
+      return new Response(JSON.stringify({ jbzl: [{ SECURITY_NAME_ABBR: '美的集团', EM2016: '白色家电', ORG_PROFILE: '家电制造企业', BUSINESS_SCOPE: '家电研发与制造' }] }), { headers: { 'content-type': 'application/json' } });
+    }
     let data = { item: [] };
     if (path.endsWith('/prices/snapshot')) data = { timestamp: 10, item: [{ thscode: '000333.SZ', last_price: 80 }] };
     if (path.endsWith('/prices/historical')) data = { timestamp: 10, item: [{ date_ms: 1, close_price: 80 }] };
@@ -98,7 +101,7 @@ test('research endpoint returns safe company metadata and provider module states
     return new Response(JSON.stringify({ code: 0, message: 'success', request_id: 'live-request', data }), { headers: { 'content-type': 'application/json' } });
   };
   try {
-    const request = new Request('https://example.test/api/research?thscode=000333.SZ&name=%E7%BE%8E%E7%9A%84%E9%9B%86%E5%9B%A2');
+    const request = new Request('https://example.test/api/research?thscode=000333.SZ');
     const response = await worker.fetch(request, { FUYAO_API_KEY: 'secret-key' }, {});
     const body = await response.json();
     assert.equal(response.status, 200);

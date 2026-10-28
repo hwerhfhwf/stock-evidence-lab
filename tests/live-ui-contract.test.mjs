@@ -49,3 +49,9 @@ test('connected AI follows preview apply and undo instead of silently replacing 
   for (const token of ['analyzeResearch', 'validateResearchPatch', 'renderAIPreview', 'applyAIPreview', 'undoAIResearch']) assert.match(app, new RegExp(token), token);
   assert.doesNotMatch(app, /eval\(|new Function/);
 });
+
+test('changing companies replaces the complete company frame instead of retaining BYD decoration', () => {
+  for (const token of ['renderBusinessHeroVisual', 'inferCompanyType', 'buildLiveReportEntries']) assert.match(app, new RegExp(token));
+  assert.match(html, /id="business-visual"/);
+  assert.doesNotMatch(html, /class="plant-label">BYD/);
+});

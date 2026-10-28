@@ -38,8 +38,8 @@ test('first viewport follows the approved research hierarchy instead of equal ca
   for (const id of ['quote-strip', 'business-hero', 'composition-chart', 'operating-chart', 'operating-kpis', 'market-chart', 'valuation-strip', 'module-status']) {
     assert.ok(delivery.includes(`id="${id}"`) || delivery.includes(`id='${id}'`) || delivery.includes(`id=${id}`), id);
   }
-  assert.match(css, /--text-sm:\s*12px/);
-  assert.match(css, /--text-md:\s*14px/);
+  assert.match(css, /--text-sm:\s*13px/);
+  assert.match(css, /--text-md:\s*15px/);
   assert.match(css, /--text-lg:\s*16px/);
   assert.match(css, /grid-template-columns:\s*repeat\(12,/);
 });

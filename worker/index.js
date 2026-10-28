@@ -2,6 +2,7 @@ import { page, styles, appScript, diagnosisModelScript, finscopeDataScript, data
 import { createFuyaoClient, FuyaoError } from './fuyao.js';
 import { buildResearchBundle } from './research.js';
 import { analyzeWithAI, AIRequestError } from './ai.js';
+import { createCompanyProfileProvider } from './company-profile.js';
 
 const securityHeaders = {
   'content-security-policy': "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; base-uri 'none'; frame-ancestors 'self'; form-action 'self'",
@@ -82,9 +83,12 @@ export default {
         return response({ items: searchItems(result.data), requestId: result.requestId }, { cache: 'private, max-age=120' });
       }
       if (url.pathname === '/api/research') {
-        const bundle = await buildResearchBundle(client, url.searchParams.get('thscode'), Date.now());
+        const bundle = await buildResearchBundle(client, url.searchParams.get('thscode'), Date.now(), { profileProvider: createCompanyProfileProvider(fetch) });
         const name = (url.searchParams.get('name') ?? '').trim().slice(0, 80);
-        bundle.company = { name: name || bundle.modules.market.snapshot?.name || bundle.thscode, thscode: bundle.thscode };
+        bundle.company = {
+          name: name || bundle.modules.profile?.data?.name || bundle.modules.market.snapshot?.name || bundle.thscode,
+          thscode: bundle.thscode,
+        };
         return response(bundle, { cache: 'private, max-age=90' });
       }
     } catch (error) {

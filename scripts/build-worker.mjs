@@ -37,6 +37,7 @@ await Promise.all([
   copyFile(resolve(root, 'worker/research.js'), resolve(root, 'dist/server/research.js')),
   copyFile(resolve(root, 'worker/ifind.js'), resolve(root, 'dist/server/ifind.js')),
   copyFile(resolve(root, 'worker/ai.js'), resolve(root, 'dist/server/ai.js')),
+  copyFile(resolve(root, 'worker/company-profile.js'), resolve(root, 'dist/server/company-profile.js')),
   copyFile(resolve(root, 'worker/ui.js'), resolve(root, 'dist/server/ui.js')),
   copyFile(resolve(root, '.openai/hosting.json'), resolve(root, 'dist/.openai/hosting.json')),
 ]);

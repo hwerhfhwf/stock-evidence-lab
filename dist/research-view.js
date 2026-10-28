@@ -108,7 +108,7 @@ function fallbackIndicators(fallback) {
 }
 
 export function normalizeResearchView(bundle, company = {}, fallback = null) {
-  const hasLiveBundle = Boolean(bundle && bundle.modules && bundle.thscode);
+  const hasLiveBundle = Boolean(bundle && bundle.modules && bundle.thscode && bundle.sourceMode !== 'disclosure_snapshot');
   const code = String(bundle?.company?.thscode ?? bundle?.thscode ?? company?.thscode ?? fallback?.meta?.symbol ?? '').toUpperCase();
   const name = bundle?.company?.name ?? company?.name ?? fallback?.meta?.company ?? code;
   const modules = bundle?.modules ?? {};
@@ -153,7 +153,7 @@ export function normalizeResearchView(bundle, company = {}, fallback = null) {
     } : {
       status: fallback ? 'fallback' : 'unavailable',
       errors: [],
-      report: fallback?.meta?.financialThrough ?? null,
+      report: modules.indicators?.report ?? fallback?.meta?.financialThrough ?? null,
       values: fallbackIndicators(fallback),
     },
     valuation: {
@@ -167,6 +167,14 @@ export function normalizeResearchView(bundle, company = {}, fallback = null) {
     },
     industry: { ...moduleState(modules.industry), data: modules.industry?.data ?? null },
     context: { ...moduleState(modules.context), data: modules.context?.data ?? null },
+    profile: {
+      ...moduleState(modules.profile),
+      name: modules.profile?.data?.name ?? name,
+      industry: modules.profile?.data?.industry ?? null,
+      summary: modules.profile?.data?.summary ?? null,
+      businessScope: modules.profile?.data?.businessScope ?? null,
+      source: modules.profile?.source ?? null,
+    },
     revenueComposition: disclosureComposition(fallback, code),
     sources: fallback?.meta?.symbol === code && Array.isArray(fallback?.sources) ? fallback.sources : [],
   };

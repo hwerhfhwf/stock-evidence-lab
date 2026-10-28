@@ -35,6 +35,11 @@ test('cash coverage separates operating cash capital expenditure and uncovered a
   assert.equal(model.covered, 591.36);
   assert.equal(model.uncovered, 976.72);
   assert.equal(model.coveragePct, 37.71);
+
+  const negativeCash = buildCashCoverage({ cfo: -50, capex: 100 });
+  assert.equal(negativeCash.covered, 0);
+  assert.equal(negativeCash.uncovered, 100);
+  assert.equal(negativeCash.coveragePct, -50);
 });
 
 test('three market tracks preserve missing observations and use the same interval', () => {

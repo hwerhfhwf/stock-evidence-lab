@@ -125,6 +125,7 @@ export function createBydDemoBundle(snapshot = BYD_SNAPSHOT) {
   const at = (date) => Date.parse(`${date}T00:00:00+08:00`);
   return {
     thscode: snapshot.meta.symbol,
+    sourceMode: 'disclosure_snapshot',
     generatedAt: `${snapshot.meta.informationCutoff}T12:00:00+08:00`,
     source: '比亚迪定期报告与产销快报快照',
     modules: {

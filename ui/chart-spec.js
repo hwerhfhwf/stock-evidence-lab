@@ -85,9 +85,10 @@ export function buildCashCoverage(values = {}) {
   const cfo = finite(values.cfo);
   const capex = finite(values.capex);
   if (cfo === null || capex === null || capex < 0) return null;
-  const covered = round(Math.max(0, Math.min(cfo, capex)));
-  const uncovered = round(Math.max(0, capex - cfo));
-  return { cfo: round(cfo), capex: round(capex), covered, uncovered, coveragePct: capex === 0 ? null : round(cfo / capex * 100) };
+  const usableCash = Math.max(0, cfo);
+  const covered = round(Math.min(usableCash, capex));
+  const uncovered = round(Math.max(0, capex - usableCash));
+  return { cfo: round(cfo), capex: round(capex), covered, uncovered, coveragePct: capex === 0 ? null : round(cfo / capex * 100), periodLabel: String(values.periodLabel ?? '') };
 }
 
 export function renderCashCoverageChart(model, sourceRefs = []) {
@@ -97,7 +98,7 @@ export function renderCashCoverageChart(model, sourceRefs = []) {
   const coveredWidth = width * model.covered / total;
   const uncoveredWidth = width * model.uncovered / total;
   return `<svg class="chart-svg cash-coverage" viewBox="0 0 620 150" role="img" tabindex="0" data-source-ref="${refs(sourceRefs)}" aria-label="经营现金流对资本开支的覆盖">
-    <text x="22" y="18" class="axis">2025 · 亿元</text><text x="598" y="18" text-anchor="end" class="axis">经营现金 / 资本开支 = ${model.coveragePct === null ? '—' : `${model.coveragePct.toFixed(1)}%`}</text>
+    <text x="22" y="18" class="axis">${model.periodLabel ? `${model.periodLabel} · ` : ''}亿元</text><text x="598" y="18" text-anchor="end" class="axis">经营现金 / 资本开支 = ${model.coveragePct === null ? '—' : `${model.coveragePct.toFixed(1)}%`}</text>
     <text x="22" y="53" class="label">资本开支</text><rect x="78" y="34" width="${width}" height="28" rx="3" fill="#17364A"/><rect x="78" y="34" width="${coveredWidth}" height="28" rx="3" fill="#2DD4BF"/><rect x="${78 + coveredWidth}" y="34" width="${uncoveredWidth}" height="28" fill="#F59E0B" opacity=".72"/>
     <text x="78" y="86" class="label">经营现金 ${model.cfo.toFixed(1)}</text><text x="598" y="86" text-anchor="end" class="label">资本开支 ${model.capex.toFixed(1)}</text>
     <line x1="78" x2="598" y1="102" y2="102" stroke="#284A60"/><text x="78" y="126" class="flow-label">已覆盖 ${model.covered.toFixed(1)}</text><text x="598" y="126" text-anchor="end" class="negative-label">未覆盖 ${model.uncovered.toFixed(1)}</text>
