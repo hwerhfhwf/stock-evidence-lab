@@ -155,6 +155,9 @@ export async function buildResearchBundle(client, thscode, now = Date.now(), opt
     errors: [{ code: 'industry_mapping_unavailable', message: 'A verified stock-to-industry mapping is not available from the current Fuyao bundle', requestId: null }],
   };
   const context = await resolveIfindContext(options.contextProvider, { thscode: code, generatedAt: new Date(end).toISOString() });
+  const profile = options.profileProvider
+    ? await options.profileProvider(code).catch(() => ({ status: 'unavailable', data: null, source: null, errors: [{ code: 'profile_unavailable', message: '公司概况服务暂不可用', requestId: null }] }))
+    : { status: 'unavailable', data: null, source: null, errors: [{ code: 'profile_not_configured', message: '公司概况服务未配置', requestId: null }] };
 
   return {
     thscode: code,
@@ -164,6 +167,6 @@ export async function buildResearchBundle(client, thscode, now = Date.now(), opt
       fuyao: market.status === 'error' && financials.status === 'error' && indicators.status === 'error' && valuationModule.status === 'unavailable' ? 'unavailable' : 'available',
       ifind: context.status,
     },
-    modules: { market, financials, indicators, valuation: valuationModule, industry, context },
+    modules: { market, financials, indicators, valuation: valuationModule, industry, context, profile },
   };
 }

@@ -1,6 +1,8 @@
-import { page, styles, appScript, diagnosisModelScript, finscopeDataScript, dataClientScript, researchViewScript } from './ui.js';
+import { page, styles, appScript, diagnosisModelScript, finscopeDataScript, dataClientScript, researchViewScript, researchProtocolScript, aiAdapterScript, chartSpecScript } from './ui.js';
 import { createFuyaoClient, FuyaoError } from './fuyao.js';
 import { buildResearchBundle } from './research.js';
+import { analyzeWithAI, AIRequestError } from './ai.js';
+import { createCompanyProfileProvider } from './company-profile.js';
 
 const securityHeaders = {
   'content-security-policy': "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; base-uri 'none'; frame-ancestors 'self'; form-action 'self'",
@@ -18,7 +20,7 @@ function response(body, { status = 200, contentType = 'application/json; charset
 }
 
 function errorResponse(error) {
-  const safe = error instanceof FuyaoError ? error : new FuyaoError('Unexpected server error');
+  const safe = error instanceof FuyaoError || error instanceof AIRequestError ? error : new FuyaoError('Unexpected server error');
   return response({
     error: {
       code: safe.code,
@@ -45,6 +47,16 @@ export default {
   async fetch(request, env = {}, ctx = {}) {
     void ctx;
     const url = new URL(request.url);
+    if (url.pathname === '/api/ai/analyze') {
+      if (request.method !== 'POST') return response({ error: { code: 'method_not_allowed', message: 'Only POST is supported' } }, { status: 405 });
+      try {
+        const contentLength = Number(request.headers.get('content-length') ?? 0);
+        if (contentLength > 180000) throw new AIRequestError('AI 请求内容过长', { code: 'invalid_ai_request', status: 413 });
+        return response(await analyzeWithAI(fetch, await request.json()));
+      } catch (error) {
+        return errorResponse(error);
+      }
+    }
     if (request.method !== 'GET') return response({ error: { code: 'method_not_allowed', message: 'Only GET is supported' } }, { status: 405 });
     if (url.pathname === '/') return response(page, { contentType: 'text/html; charset=utf-8', cache: 'private, max-age=60' });
     if (url.pathname === '/styles.css') return response(styles, { contentType: 'text/css; charset=utf-8' });
@@ -53,6 +65,9 @@ export default {
     if (url.pathname === '/finscope-data.js') return response(finscopeDataScript, { contentType: 'text/javascript; charset=utf-8' });
     if (url.pathname === '/data-client.js') return response(dataClientScript, { contentType: 'text/javascript; charset=utf-8' });
     if (url.pathname === '/research-view.js') return response(researchViewScript, { contentType: 'text/javascript; charset=utf-8' });
+    if (url.pathname === '/research-protocol.js') return response(researchProtocolScript, { contentType: 'text/javascript; charset=utf-8' });
+    if (url.pathname === '/ai-adapter.js') return response(aiAdapterScript, { contentType: 'text/javascript; charset=utf-8' });
+    if (url.pathname === '/chart-spec.js') return response(chartSpecScript, { contentType: 'text/javascript; charset=utf-8' });
     if (url.pathname === '/api/health') {
       return env.FUYAO_API_KEY
         ? response({ status: 'ok', provider: 'fuyao', secretConfigured: true })
@@ -68,9 +83,12 @@ export default {
         return response({ items: searchItems(result.data), requestId: result.requestId }, { cache: 'private, max-age=120' });
       }
       if (url.pathname === '/api/research') {
-        const bundle = await buildResearchBundle(client, url.searchParams.get('thscode'), Date.now());
+        const bundle = await buildResearchBundle(client, url.searchParams.get('thscode'), Date.now(), { profileProvider: createCompanyProfileProvider(fetch) });
         const name = (url.searchParams.get('name') ?? '').trim().slice(0, 80);
-        bundle.company = { name: name || bundle.modules.market.snapshot?.name || bundle.thscode, thscode: bundle.thscode };
+        bundle.company = {
+          name: name || bundle.modules.profile?.data?.name || bundle.modules.market.snapshot?.name || bundle.thscode,
+          thscode: bundle.thscode,
+        };
         return response(bundle, { cache: 'private, max-age=90' });
       }
     } catch (error) {

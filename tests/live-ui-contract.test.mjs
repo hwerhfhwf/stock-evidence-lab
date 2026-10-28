@@ -36,3 +36,22 @@ test('browser orchestrates live search and module-level research rendering', () 
   }
   for (const token of ['aria-busy', 'role="status"', 'search-results']) assert.ok(html.includes(token), token);
 });
+
+test('research question updates visible dimensions without changing source data', () => {
+  for (const token of ['dimension-rail', 'data-dimension', 'selectedDimensions', 'renderDimensionRail']) {
+    assert.match(html + app, new RegExp(token), token);
+  }
+  assert.doesNotMatch(app, /innerHTML\s*=\s*.*requestId/);
+});
+
+test('connected AI follows preview apply and undo instead of silently replacing research', () => {
+  for (const id of ['ai-preview', 'ai-apply', 'ai-undo', 'custom-research']) assert.match(html, new RegExp(`id="${id}"`), id);
+  for (const token of ['analyzeResearch', 'validateResearchPatch', 'renderAIPreview', 'applyAIPreview', 'undoAIResearch']) assert.match(app, new RegExp(token), token);
+  assert.doesNotMatch(app, /eval\(|new Function/);
+});
+
+test('changing companies replaces the complete company frame instead of retaining BYD decoration', () => {
+  for (const token of ['renderBusinessHeroVisual', 'inferCompanyType', 'buildLiveReportEntries']) assert.match(app, new RegExp(token));
+  assert.match(html, /id="business-visual"/);
+  assert.doesNotMatch(html, /class="plant-label">BYD/);
+});

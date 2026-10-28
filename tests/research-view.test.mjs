@@ -52,3 +52,27 @@ test('normalizeResearchView labels the BYD disclosure fallback and never present
   assert.equal(Number(view.indicators.values.calculate_parent_holder_net_profit_yoy_growth_ratio.toFixed(2)), -20.54);
 });
 
+test('normalized financial view exposes synchronized revenue profit and cash periods', () => {
+  const view = normalizeResearchView(null, { name: '比亚迪', thscode: '002594.SZ' }, BYD_SNAPSHOT);
+  assert.deepEqual(view.financials.annualSeries.map(row => row.label), ['2023', '2024', '2025']);
+  assert.ok(view.financials.annualSeries.every(row => Number.isFinite(row.revenue) && Number.isFinite(row.parentProfit) && Number.isFinite(row.cfo)));
+});
+
+test('live company profile and every report period remain available to the full workbench', () => {
+  const bundle = {
+    thscode: '000333.SZ', generatedAt: '2026-10-28T00:00:00.000Z', providers: { fuyao: 'available' },
+    company: { name: '美的集团', thscode: '000333.SZ' },
+    modules: {
+      market: { status: 'ok', snapshot: { last_price: 85.91 }, signals: { series: [] }, errors: [] },
+      financials: { status: 'ok', income: [{ fiscal_year: 2026, fiscal_period: 'Q2', period_end_ms: Date.UTC(2026, 5, 30), operating_income: 260, parent_holder_net_profit: 26 }], balance: [], cashflow: [], errors: [] },
+      indicators: { status: 'ok', report: '2026-2', data: { abilities: [] }, errors: [] },
+      valuation: { status: 'ok', data: {}, errors: [] }, industry: { status: 'unavailable', errors: [] }, context: { status: 'unavailable', errors: [] },
+      profile: { status: 'ok', data: { industry: '家电-白色家电', summary: '智能家居与工业技术。', businessScope: '家电研发制造销售。' }, source: { id: 'PROFILE:000333.SZ', name: '公司概况', url: 'https://example.test/profile' }, errors: [] },
+    },
+  };
+  const view = normalizeResearchView(bundle, bundle.company);
+  assert.equal(view.profile.industry, '家电-白色家电');
+  assert.equal(view.financials.income.length, 1);
+  assert.equal(view.company.name, '美的集团');
+});
+

@@ -38,8 +38,8 @@ test('first viewport follows the approved research hierarchy instead of equal ca
   for (const id of ['quote-strip', 'business-hero', 'composition-chart', 'operating-chart', 'operating-kpis', 'market-chart', 'valuation-strip', 'module-status']) {
     assert.ok(delivery.includes(`id="${id}"`) || delivery.includes(`id='${id}'`) || delivery.includes(`id=${id}`), id);
   }
-  assert.match(css, /--text-sm:\s*12px/);
-  assert.match(css, /--text-md:\s*14px/);
+  assert.match(css, /--text-sm:\s*13px/);
+  assert.match(css, /--text-md:\s*15px/);
   assert.match(css, /--text-lg:\s*16px/);
   assert.match(css, /grid-template-columns:\s*repeat\(12,/);
 });
@@ -49,4 +49,35 @@ test('charts are accessible svg views with direct labels and explicit unavailabl
     assert.ok(app.includes(token), token);
   }
   assert.match(app, /aria-label=/);
+});
+
+test('continuous canvas exposes one compact context bar and six linked research dimensions', () => {
+  for (const token of ['context-bar', 'research-canvas', 'canvas-section', 'dimension-rail', 'company-context']) {
+    assert.match(html, new RegExp(token), token);
+  }
+  for (const id of ['business', 'operating', 'finance', 'valuation', 'market', 'events']) {
+    assert.equal((html.match(new RegExp(`id="${id}"`, 'g')) ?? []).length, 1, id);
+  }
+  assert.match(css, /\.research-canvas\s*\{[^}]*grid-template-columns:\s*repeat\(12,/s);
+});
+
+test('AI command controls remain subordinate to the company research canvas', () => {
+  for (const id of ['research-question', 'run-diagnosis', 'ai-settings', 'ai-connection-state']) {
+    assert.match(html, new RegExp(`id="${id}"`), id);
+  }
+  assert.match(html, /默认研究/);
+  assert.doesNotMatch(html, /AI 驱动|智能投研革命|全能|一键洞察/);
+});
+
+test('palette assigns distinct semantic variables without gradients as decoration', () => {
+  for (const token of ['--revenue:', '--profit:', '--cash:', '--assets:', '--liabilities:', '--equity:', '--valuation:', '--positive:', '--negative:', '--conflicting:', '--unknown:']) {
+    assert.ok(css.includes(token), token);
+  }
+  assert.doesNotMatch(css, /background:\s*(?:linear|radial)-gradient/);
+});
+
+test('claim layer and report risk map are visible research structures', () => {
+  for (const id of ['research-claims', 'report-timeline', 'risk-map']) assert.match(html, new RegExp(`id="${id}"`), id);
+  assert.match(css, /\.evidence-direction\.conflicting/);
+  assert.match(css, /\.epistemic-marker\.inference/);
 });

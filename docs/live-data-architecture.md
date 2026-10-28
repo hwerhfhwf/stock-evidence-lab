@@ -6,7 +6,9 @@
 浏览器
   ├─ /api/search   → Worker → 扶摇公司搜索
   └─ /api/research → Worker → 扶摇行情 / K 线 / 财务 / 指标 / 估值
+                            ├→ 东方财富 F10 公司概况
                             └→ iFinD 可选语境提供器
+  └─ /api/ai/analyze → Worker → 用户指定的 OpenAI 兼容模型
 ```
 
 浏览器只接收规范化结果，不接触 `FUYAO_API_KEY` 或 iFinD 账户配置。Worker 对 A 股代码、查询长度和上游路径使用允许列表，并把 HTTP 错误和业务错误转换为安全错误结构。
@@ -16,6 +18,7 @@
 | 模块 | 主来源 | 页面用途 | 失败行为 |
 | --- | --- | --- | --- |
 | 公司搜索 | 扶摇 | 名称 / 代码检索 | 保留当前公司，显示搜索错误 |
+| 公司概况 | 东方财富 F10 | 业务简介、行业文本 | 局部显示不可用，不影响财务与行情 |
 | 行情 | 扶摇 | 最新价、前复权价格、成交量、收益与回撤 | 行情模块不可用；不画示意价格 |
 | 财务报表 | 扶摇 | 收入、利润、现金、资产负债趋势 | 保留成功的报表，缺表单独提示 |
 | 财务指标 | 扶摇 | 同比、现金含量、资产负债率 | 指标显示暂无数据，不从金额猜测原因 |
@@ -25,7 +28,7 @@
 
 ## 研究 bundle
 
-`buildResearchBundle` 输出六个并列但独立的模块：`market`、`financials`、`indicators`、`valuation`、`industry`、`context`。每个模块包含：
+`buildResearchBundle` 输出七个并列但独立的模块：`profile`、`market`、`financials`、`indicators`、`valuation`、`industry`、`context`。每个模块包含：
 
 - `status`: `ok`、`partial`、`error` 或 `unavailable`；
 - `errors`: 受影响模块的安全错误；
@@ -47,3 +50,5 @@
 - 浏览器、错误信息、导出 JSON 和 Git 仓库都不包含密钥。
 - `/api/search` 和 `/api/research` 只接受受限参数；上游返回体不直接透传。
 - 页面不输出综合评分、涨跌预测或买卖建议。
+- 模型端点必须为公开 HTTPS 地址；本地网段和带凭据 URL 被拒绝。
+- 模型返回的字段引用、来源引用、证据槽位和图表类型均在服务端结果进入页面前校验。
