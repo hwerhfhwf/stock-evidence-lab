@@ -57,7 +57,7 @@ function normalizeMessages(messages) {
   });
 }
 
-export async function analyzeWithAI(fetchFn, payload = {}) {
+export async function analyzeWithAI(fetchFn, payload = {}, options = {}) {
   const endpoint = normalizeAIEndpoint(payload.endpoint);
   const model = String(payload.model ?? '').trim();
   const apiKey = String(payload.apiKey ?? '').trim();
@@ -78,14 +78,23 @@ export async function analyzeWithAI(fetchFn, payload = {}) {
   }
 
   let upstream;
+  const controller = new AbortController();
+  const timeoutMs = Number.isFinite(options.timeoutMs) ? Math.max(1, options.timeoutMs) : 45000;
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
     upstream = await fetchFn(endpoint, {
       method: 'POST',
       headers: { 'content-type': 'application/json', authorization: `Bearer ${apiKey}` },
       body: JSON.stringify(body),
+      signal: controller.signal,
     });
   } catch {
+    if (controller.signal.aborted) {
+      throw new AIRequestError('AI 服务响应超时', { code: 'ai_timeout', status: 504 });
+    }
     throw new AIRequestError('AI 服务暂时无法连接', { code: 'ai_network_error', status: 502 });
+  } finally {
+    clearTimeout(timeout);
   }
   if (!upstream.ok) {
     throw new AIRequestError('AI 服务返回异常', { code: 'ai_upstream_error', status: 502 });

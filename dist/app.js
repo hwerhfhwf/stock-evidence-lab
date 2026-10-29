@@ -3,7 +3,7 @@ import { BYD_SNAPSHOT, createBydDemoBundle, deriveBydResearch, factsForMode } fr
 import { createResearchClient, ResearchClientError } from '/data-client.js';
 import { normalizeResearchView } from '/research-view.js';
 import { buildResearchClaims, buildSourcePackage } from '/research-protocol.js';
-import { AIAdapterError, analyzeResearch, parseResearchResponse, validateResearchPatch } from '/ai-adapter.js';
+import { AIAdapterError, analyzeResearch, createAIResearchContext, parseResearchResponse, validateResearchPatch } from '/ai-adapter.js';
 import {
   buildBalanceFlow,
   buildCashCoverage,
@@ -509,7 +509,7 @@ async function runAIResearch(question) {
       ...state.aiConnection,
       messages: [
         { role: 'system', content: '你是 FinScope 的公司研究编排器。只返回一个原始 JSON 对象，不要 Markdown。只使用 sourcePackage 已有字段；事实、推断、暂无法验证必须分开；positive、negative、conflicting、unknown 是同一判断下的证据方向，不是好坏标签。不得预测涨跌、承诺收益或给出买卖建议。返回键必须是 selectedDimensions、claims、chartSpecs。claims 从 defaultClaims 中选择 1 至 3 个完整对象，可精简 question 和 statement，但不得修改任何 evidenceRefs、sourceRefs、drilldowns 或 evidenceGroups 结构。chartSpecs 不确定时返回空数组；如生成，只可引用 sourcePackage.fields 的字段 id，series 不得含 data、values 或任意数值。' },
-        { role: 'user', content: JSON.stringify({ task: '选择与研究问题最相关的维度，并把现有可核验判断组织成研究补充草稿。', question, sourcePackage: state.sourcePackage, defaultClaims: state.claims }) },
+        { role: 'user', content: JSON.stringify(createAIResearchContext({ question, sourcePackage: state.sourcePackage, defaultClaims: state.claims })) },
       ],
       tools: [],
       outputSchema: null,

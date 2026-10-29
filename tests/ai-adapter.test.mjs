@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { analyzeResearch, parseResearchResponse, validateChartSpec, validateResearchPatch } from '../ui/ai-adapter.js';
+import { analyzeResearch, createAIResearchContext, parseResearchResponse, validateChartSpec, validateResearchPatch } from '../ui/ai-adapter.js';
 
 const sourcePackage = {
   fields: [
@@ -47,6 +47,26 @@ test('AI response parser accepts raw JSON and a single fenced JSON object', () =
     parseResearchResponse('```json\n{"selectedDimensions":["valuation"]}\n```'),
     { selectedDimensions: ['valuation'] },
   );
+});
+
+test('AI context keeps auditable fields and claims but removes bulky market series', () => {
+  const context = createAIResearchContext({
+    question: '利润转化如何变化？',
+    sourcePackage: {
+      ...sourcePackage,
+      company: { name: '示例公司', thscode: '000001.SZ' },
+      generatedAt: '2026-10-29',
+      marketSeries: Array.from({ length: 200 }, (_, index) => ({ date: index, close: index + 1 })),
+      providers: { market: 'provider' },
+    },
+    defaultClaims: [{ id: 'claim-1', statement: '可核验判断' }],
+  });
+  assert.equal(context.question, '利润转化如何变化？');
+  assert.equal(context.sourcePackage.fields.length, 2);
+  assert.equal(context.defaultClaims[0].id, 'claim-1');
+  assert.equal('marketSeries' in context.sourcePackage, false);
+  assert.equal('providers' in context.sourcePackage, false);
+  assert.ok(JSON.stringify(context).length < 5000);
 });
 
 test('chart spec accepts whitelisted source references without accepting raw replacement values', () => {

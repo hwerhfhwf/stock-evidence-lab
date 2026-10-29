@@ -14,6 +14,40 @@ const chartTypes = new Set([
 const advicePattern = /(?:建议|应当|应该|适合|值得).{0,8}(?:买入|卖出|增持|减持|抄底)|保证收益|目标价|必涨|必跌/i;
 const unsafeSeriesKeys = new Set(['data', 'values', 'value', 'points', 'html', 'code', 'script']);
 
+export function createAIResearchContext({ question, sourcePackage, defaultClaims }) {
+  const compactFields = (sourcePackage?.fields ?? []).slice(0, 120).map(field => ({
+    id: field.id,
+    label: field.label,
+    value: field.value,
+    unit: field.unit,
+    period: field.period,
+    scope: field.scope,
+    status: field.status,
+    sourceRefs: field.sourceRefs,
+  }));
+  const compactSources = (sourcePackage?.sources ?? []).map(source => ({
+    id: source.id,
+    name: source.name,
+    disclosed: source.disclosed,
+    period: source.period,
+    sourceType: source.sourceType,
+  }));
+  return {
+    task: '选择与研究问题最相关的维度，并把现有可核验判断组织成研究补充草稿。',
+    question,
+    sourcePackage: {
+      version: sourcePackage?.version,
+      company: sourcePackage?.company,
+      generatedAt: sourcePackage?.generatedAt,
+      profile: sourcePackage?.profile,
+      fields: compactFields,
+      sources: compactSources,
+      peers: sourcePackage?.peers ?? [],
+    },
+    defaultClaims,
+  };
+}
+
 export async function analyzeResearch(input, fetchFn = globalThis.fetch) {
   let response;
   try {
