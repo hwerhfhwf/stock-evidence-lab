@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { analyzeResearch, validateChartSpec, validateResearchPatch } from '../ui/ai-adapter.js';
+import { analyzeResearch, parseResearchResponse, validateChartSpec, validateResearchPatch } from '../ui/ai-adapter.js';
 
 const sourcePackage = {
   fields: [
@@ -38,6 +38,14 @@ test('AI adapter keeps credentials session-only and returns a safe network error
   await assert.rejects(
     analyzeResearch({ endpoint: 'https://api.example.com/v1', model: 'm', apiKey: 'k', messages: [] }, async () => { throw new Error('socket secret'); }),
     error => error.code === 'network_error' && !error.message.includes('secret'),
+  );
+});
+
+test('AI response parser accepts raw JSON and a single fenced JSON object', () => {
+  assert.deepEqual(parseResearchResponse('{"selectedDimensions":[]}'), { selectedDimensions: [] });
+  assert.deepEqual(
+    parseResearchResponse('```json\n{"selectedDimensions":["valuation"]}\n```'),
+    { selectedDimensions: ['valuation'] },
   );
 });
 

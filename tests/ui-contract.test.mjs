@@ -61,11 +61,15 @@ test('continuous canvas exposes one compact context bar and six linked research 
   assert.match(css, /\.research-canvas\s*\{[^}]*grid-template-columns:\s*repeat\(12,/s);
 });
 
-test('AI command controls remain subordinate to the company research canvas', () => {
+test('AI research assistant has a visible identity, honest state and explicit action', () => {
   for (const id of ['research-question', 'run-diagnosis', 'ai-settings', 'ai-connection-state']) {
     assert.match(html, new RegExp(`id="${id}"`), id);
   }
-  assert.match(html, /默认研究/);
+  for (const copy of ['AI 研究助手', '未连接模型', '连接 Gemini / 兼容模型', '定位研究重点', '生成证据关系与图表']) {
+    assert.match(html, new RegExp(copy), copy);
+  }
+  assert.match(html, /class="ai-assistant-icon"[\s\S]*?<svg/);
+  assert.match(html, /aria-hidden="true"/);
   assert.doesNotMatch(html, /AI 驱动|智能投研革命|全能|一键洞察/);
 });
 

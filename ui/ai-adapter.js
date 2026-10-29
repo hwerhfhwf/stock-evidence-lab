@@ -83,7 +83,10 @@ const allowedDimensions = new Set(['operating_quality', 'financial_trend', 'valu
 
 export function parseResearchResponse(content) {
   try {
-    const parsed = JSON.parse(content);
+    const normalized = String(content ?? '').trim()
+      .replace(/^```(?:json)?\s*/i, '')
+      .replace(/\s*```$/, '');
+    const parsed = JSON.parse(normalized);
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('not-object');
     return parsed;
   } catch {

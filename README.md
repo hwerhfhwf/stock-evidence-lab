@@ -5,7 +5,15 @@ FinScope 是一个可操作的 AI Native A 股公司研究工作台。它把公�
 - Web 产品：[stock-evidence-lab-midea.violet-lotus-6432.chatgpt.site](https://stock-evidence-lab-midea.violet-lotus-6432.chatgpt.site)
 - 公共源码：[github.com/hwerhfhwf/stock-evidence-lab](https://github.com/hwerhfhwf/stock-evidence-lab)
 
+## 产品截图
+
+实时 A 股公司研究工作台：
+
 ![FinScope 桌面版研究工作台](docs/finscope-desktop.png)
+
+AI 研究助手：连接临时模型后，围绕当前公司和研究问题生成受约束的证据关系、判断与图表草稿，先预览再应用。
+
+![FinScope AI 研究助手使用效果](docs/finscope-ai-research.png)
 
 ## 产品价值
 
@@ -48,6 +56,14 @@ GET /api/research?thscode=002594.SZ&name=比亚迪
 - 图表类型、字段引用和来源引用均使用白名单校验；校验失败时保留默认研究。
 - 模型结果先预览，用户应用后仍可撤销；换股时模型草稿和自定义图表全部清空。
 - AI 或外部数据不可用时，仅对应能力降级，确定性研究画布继续工作。
+
+### 体验 AI 研究助手
+
+1. 点击工作台顶部的“连接 Gemini / 兼容模型”。
+2. Gemini 官方 OpenAI 兼容端点和 Flash 模型已预置；粘贴临时 API Key，点击“连接当前模型”。
+3. 输入研究问题并选择“生成 AI 研究补充”。模型结果会先进入预览区，不会直接覆盖默认研究。
+
+默认配置依据 [Gemini API 的 OpenAI compatibility 文档](https://ai.google.dev/gemini-api/docs/openai/)。Provider 适配层仍接受其他 OpenAI 兼容接口。API Key 只保留在当前页面内存，输入框会在连接后清空；刷新或关闭页面后失效。
 
 ## 本地运行
 

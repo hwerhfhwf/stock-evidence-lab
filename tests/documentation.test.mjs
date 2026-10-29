@@ -10,6 +10,9 @@ test('README documents the live product, runtime secret and honest fallback', as
     assert.ok(readme.includes(token), token);
   }
   assert.match(readme, /https:\/\/stock-evidence-lab-midea\.violet-lotus-6432\.chatgpt\.site/);
+  assert.match(readme, /docs\/finscope-desktop\.png/);
+  assert.match(readme, /docs\/finscope-ai-research\.png/);
+  assert.match(readme, /AI 研究助手/);
 });
 
 test('architecture and handoff separate provider responsibilities and missing data', async () => {

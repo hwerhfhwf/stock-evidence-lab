@@ -3,7 +3,7 @@ import { BYD_SNAPSHOT, createBydDemoBundle, deriveBydResearch, factsForMode } fr
 import { createResearchClient, ResearchClientError } from '/data-client.js';
 import { normalizeResearchView } from '/research-view.js';
 import { buildResearchClaims, buildSourcePackage } from '/research-protocol.js';
-import { analyzeResearch, parseResearchResponse, validateResearchPatch } from '/ai-adapter.js';
+import { AIAdapterError, analyzeResearch, parseResearchResponse, validateResearchPatch } from '/ai-adapter.js';
 import {
   buildBalanceFlow,
   buildCashCoverage,
@@ -499,14 +499,17 @@ function undoAIResearch() {
 async function runAIResearch(question) {
   if (!state.aiConnection) return;
   const button = $('#run-diagnosis');
+  const console = $('.ai-research-console');
   button.disabled = true;
-  button.textContent = '研究中…';
+  button.textContent = '正在生成研究补充…';
+  console.setAttribute('aria-busy', 'true');
+  $('#ai-connection-state').textContent = `生成中 · ${state.aiConnection.model}`;
   try {
     const result = await analyzeResearch({
       ...state.aiConnection,
       messages: [
-        { role: 'system', content: '你是公司研究编排器。只使用 sourcePackage 中的字段；事实、推断、暂无法验证必须分开；正面、负面、指标方向分化和未知是同一判断的证据属性；不得预测涨跌、承诺收益或给出买卖建议。仅返回 JSON：selectedDimensions、claims、chartSpecs。图表只可引用字段 id，不得提供 data 或 values。' },
-        { role: 'user', content: JSON.stringify({ question, sourcePackage: state.sourcePackage, defaultClaims: state.claims }) },
+        { role: 'system', content: '你是 FinScope 的公司研究编排器。只返回一个原始 JSON 对象，不要 Markdown。只使用 sourcePackage 已有字段；事实、推断、暂无法验证必须分开；positive、negative、conflicting、unknown 是同一判断下的证据方向，不是好坏标签。不得预测涨跌、承诺收益或给出买卖建议。返回键必须是 selectedDimensions、claims、chartSpecs。claims 从 defaultClaims 中选择 1 至 3 个完整对象，可精简 question 和 statement，但不得修改任何 evidenceRefs、sourceRefs、drilldowns 或 evidenceGroups 结构。chartSpecs 不确定时返回空数组；如生成，只可引用 sourcePackage.fields 的字段 id，series 不得含 data、values 或任意数值。' },
+        { role: 'user', content: JSON.stringify({ task: '选择与研究问题最相关的维度，并把现有可核验判断组织成研究补充草稿。', question, sourcePackage: state.sourcePackage, defaultClaims: state.claims }) },
       ],
       tools: [],
       outputSchema: null,
@@ -516,13 +519,16 @@ async function runAIResearch(question) {
     state.aiPreview = validation.patch;
     renderAIPreview();
     $('#ai-preview').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-  } catch {
+    showToast('AI 研究草稿已生成，请核对后应用');
+  } catch (error) {
     state.aiPreview = null;
     renderAIPreview();
-    showToast('模型结果未通过校验；已保留默认研究');
+    showToast(error instanceof AIAdapterError ? `${error.message}；请检查模型、额度或接口` : '模型结果未通过结构校验；已保留默认研究');
   } finally {
     button.disabled = false;
-    button.textContent = '研究';
+    button.textContent = '生成 AI 研究补充';
+    console.setAttribute('aria-busy', 'false');
+    $('#ai-connection-state').textContent = `已连接 · ${state.aiConnection.model}`;
   }
 }
 
@@ -879,6 +885,7 @@ $('#research-task').addEventListener('submit', async event => {
   $('#priority-result').innerHTML = `<strong>${esc(question || '公司研究')}</strong><ol>${selected.map(item => `<li><a href="#${sectionByDimension[item.dimension]}">${esc(item.label)}</a></li>`).join('')}</ol>`;
   $('#priority-result').hidden = false;
   document.getElementById(sectionByDimension[selected[0]?.dimension] || 'operating')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  if (!state.aiConnection) showToast('已定位研究维度；连接模型后可生成证据补充');
   await runAIResearch(question);
 });
 
@@ -897,10 +904,13 @@ $('#ai-connect').addEventListener('click', () => {
   if (!endpoint || !model || !apiKey) return showToast('请填写接口、模型和临时 API Key');
   state.aiConnection = { endpoint, model, apiKey };
   $('#ai-key').value = '';
-  $('#ai-connection-state').textContent = model;
+  $('.ai-research-console').dataset.connected = 'true';
+  $('#ai-connection-state').textContent = `已连接 · ${model}`;
+  $('#run-diagnosis').textContent = '生成 AI 研究补充';
+  $('#ai-settings').innerHTML = '<span class="button-spark" aria-hidden="true">◇</span>更换模型';
   $('#ai-settings-panel').hidden = true;
   $('#ai-settings').setAttribute('aria-expanded', 'false');
-  showToast('模型连接仅在当前页面有效');
+  showToast('模型已就绪；密钥仅在当前页面内存中使用');
 });
 
 $('#ai-apply').addEventListener('click', applyAIPreview);

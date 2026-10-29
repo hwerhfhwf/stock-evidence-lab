@@ -6,7 +6,7 @@
   <meta name="color-scheme" content="dark">
   <meta name="theme-color" content="#06121e">
   <title>FinScope · A 股公司研究工作台</title>
-  <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="/styles.css?v=ai-assistant-2">
 </head>
 <body>
   <a class="skip-link" href="#main-content">跳到研究内容</a>
@@ -48,14 +48,26 @@
           <span id="source-badge" class="source-badge">加载中</span>
         </header>
 
-        <form id="research-task" class="research-task">
-          <span class="command-mark" aria-hidden="true">✦</span><label class="sr-only" for="research-question">研究问题</label>
-          <input id="research-question" value="增长放缓是否伴随经营质量下降？" autocomplete="off">
-          <span id="ai-connection-state" class="ai-connection-state">默认研究</span>
-          <button id="ai-settings" type="button" class="command-secondary" aria-expanded="false" aria-controls="ai-settings-panel">连接模型</button>
-          <button id="run-diagnosis" type="submit">研究</button>
-        </form>
-        <div id="ai-settings-panel" class="ai-settings-panel" hidden><label>兼容接口<input id="ai-endpoint" type="url" placeholder="https://api.example.com/v1"></label><label>模型<input id="ai-model" placeholder="模型名称"></label><label>临时 API Key<input id="ai-key" type="password" autocomplete="off" placeholder="仅本次页面使用"></label><button id="ai-connect" type="button">使用此连接</button></div>
+        <section class="ai-research-console" aria-labelledby="ai-assistant-title">
+          <header class="ai-assistant-head">
+            <span class="ai-assistant-icon" aria-hidden="true"><svg viewBox="0 0 24 24" role="presentation"><path d="M8 7.5h8a3 3 0 0 1 3 3v5a3 3 0 0 1-3 3H8a3 3 0 0 1-3-3v-5a3 3 0 0 1 3-3Z"/><path d="M12 4v3.5M9 12h.01M15 12h.01M9 15.5h6M3 12h2M19 12h2"/></svg></span>
+            <div><strong id="ai-assistant-title">AI 研究助手</strong><span id="ai-connection-state" class="ai-connection-state" role="status" aria-live="polite">未连接模型</span></div>
+            <p><span>选择研究维度</span><i aria-hidden="true">→</i><span>生成证据关系与图表</span><i aria-hidden="true">→</i><span>预览后应用</span></p>
+          </header>
+          <form id="research-task" class="research-task">
+            <label for="research-question">研究问题</label>
+            <input id="research-question" value="增长放缓是否伴随经营质量下降？" autocomplete="off">
+            <button id="ai-settings" type="button" class="command-secondary" aria-expanded="false" aria-controls="ai-settings-panel"><span class="button-spark" aria-hidden="true">◇</span>连接 Gemini / 兼容模型</button>
+            <button id="run-diagnosis" type="submit">定位研究重点</button>
+          </form>
+        </section>
+        <div id="ai-settings-panel" class="ai-settings-panel" hidden>
+          <div class="ai-settings-intro"><strong>模型连接</strong><span>密钥仅保留在当前页面内存；关闭或刷新页面即失效。</span></div>
+          <label>兼容接口<input id="ai-endpoint" type="url" value="https://generativelanguage.googleapis.com/v1beta/openai/" autocomplete="url"></label>
+          <label>模型<input id="ai-model" value="gemini-3.8-flash" autocomplete="off"></label>
+          <label>临时 API Key<input id="ai-key" type="password" autocomplete="off" placeholder="粘贴本次测试 Key"></label>
+          <button id="ai-connect" type="button">连接当前模型</button>
+        </div>
         <nav id="dimension-rail" class="dimension-rail" aria-label="本次研究维度"><a data-dimension="operating_quality" href="#operating">经营与盈利</a><a data-dimension="financial_trend" href="#finance">财务与现金</a><a data-dimension="valuation" href="#valuation">估值与预期</a><a data-dimension="market_characteristics" href="#market">市场表现</a><a data-dimension="industry_position" href="#valuation">行业位置</a><a data-dimension="material_events" href="#events">事件与风险</a></nav>
         <section id="priority-result" class="priority-result" role="status" aria-live="polite" hidden></section>
         <section id="research-claims" class="claim-layer" aria-live="polite"></section>
@@ -105,6 +117,6 @@
   </div>
   <div id="evidence-drawer" class="drawer" aria-hidden="true"><button class="drawer-backdrop" data-close aria-label="关闭数据与出处"></button><aside role="dialog" aria-modal="true" aria-labelledby="drawer-title" tabindex="-1"><header><div><p class="eyebrow">EVIDENCE</p><h2 id="drawer-title">数据与出处</h2></div><button class="drawer-close" data-close aria-label="关闭">×</button></header><div id="drawer-content"></div></aside></div>
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
-  <script type="module" src="/app.js?v=live-workbench-1"></script>
+  <script type="module" src="/app.js?v=ai-assistant-2"></script>
 </body>
 </html>
