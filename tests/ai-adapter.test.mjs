@@ -139,3 +139,19 @@ test('AI research patch rejects unknown claim ids and keeps the deterministic st
   assert.match(result.errors.join('；'), /invented/);
 });
 
+test('AI research patch keeps valid trusted claims when an optional chart is malformed', () => {
+  const claim = {
+    id: 'trusted', dimension: 'operating_quality', question: '利润如何转化？', statement: '利润转化变化。', epistemicStatus: 'fact',
+    evidenceGroups: { positive: [], negative: [{ id: 'gap', label: '差值', evidenceRefs: ['metric:profit-growth'] }], conflicting: [], unknown: [] },
+    sourceRefs: ['metric:profit-growth'], drilldowns: [],
+  };
+  const result = validateResearchPatch({
+    selectedDimensions: ['operating_quality'], claimIds: ['trusted'],
+    chartSpecs: [{ id: 'bad', type: 'gauge', title: '无效图', series: [] }],
+  }, sourcePackage, [claim]);
+  assert.equal(result.ok, true);
+  assert.equal(result.patch.claims[0], claim);
+  assert.deepEqual(result.patch.chartSpecs, []);
+  assert.match(result.warnings.join('；'), /bad/);
+});
+

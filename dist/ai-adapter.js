@@ -15,7 +15,17 @@ const advicePattern = /(?:建议|应当|应该|适合|值得).{0,8}(?:买入|卖
 const unsafeSeriesKeys = new Set(['data', 'values', 'value', 'points', 'html', 'code', 'script']);
 
 export function createAIResearchContext({ question, sourcePackage, defaultClaims }) {
-  const compactFields = (sourcePackage?.fields ?? []).slice(0, 120).map(field => ({
+  const referencedIds = new Set((defaultClaims ?? []).flatMap(claim => [
+    ...(claim?.sourceRefs ?? []),
+    ...Object.values(claim?.evidenceGroups ?? {}).flatMap(items => (items ?? []).flatMap(item => item.evidenceRefs ?? [])),
+    ...(claim?.drilldowns ?? []).flatMap(item => item.evidenceRefs ?? []),
+  ]));
+  const allFields = sourcePackage?.fields ?? [];
+  const orderedFields = [
+    ...allFields.filter(field => referencedIds.has(field.id)),
+    ...allFields.filter(field => !referencedIds.has(field.id)),
+  ];
+  const compactFields = orderedFields.slice(0, 36).map(field => ({
     id: field.id,
     label: field.label,
     value: field.value,
@@ -23,7 +33,7 @@ export function createAIResearchContext({ question, sourcePackage, defaultClaims
     period: field.period,
     status: field.status,
   }));
-  const compactSources = (sourcePackage?.sources ?? []).map(source => ({
+  const compactSources = (sourcePackage?.sources ?? []).slice(0, 12).map(source => ({
     id: source.id,
     name: source.name,
     disclosed: source.disclosed,
@@ -69,6 +79,7 @@ export async function analyzeResearch(input, fetchFn = globalThis.fetch) {
         messages: input?.messages ?? [],
         tools: input?.tools ?? [],
         outputSchema: input?.outputSchema ?? null,
+        reasoningEffort: input?.reasoningEffort ?? null,
       }),
     });
   } catch {
@@ -138,6 +149,7 @@ export function parseResearchResponse(content) {
 
 export function validateResearchPatch(candidate, sourcePackage, defaultClaims = []) {
   const errors = [];
+  const warnings = [];
   const fieldIds = new Set((sourcePackage?.fields ?? []).map(field => field.id));
   if (!candidate || typeof candidate !== 'object') return { ok: false, errors: ['研究补丁为空'] };
   const selectedDimensions = Array.isArray(candidate.selectedDimensions)
@@ -173,10 +185,10 @@ export function validateResearchPatch(candidate, sourcePackage, defaultClaims = 
   const chartSpecs = [];
   for (const spec of Array.isArray(candidate.chartSpecs) ? candidate.chartSpecs.slice(0, 6) : []) {
     const result = validateChartSpec(spec, sourcePackage);
-    if (!result.ok) errors.push(...result.errors.map(error => `${spec?.id ?? 'chart'}：${error}`));
+    if (!result.ok) warnings.push(...result.errors.map(error => `${spec?.id ?? 'chart'}：${error}`));
     else chartSpecs.push(result.spec);
   }
   if (!selectedDimensions.length) errors.push('缺少可用研究维度');
   if (!claims.length) errors.push('缺少研究判断');
-  return { ok: errors.length === 0, errors, patch: errors.length ? null : { selectedDimensions, claims, chartSpecs } };
+  return { ok: errors.length === 0, errors, warnings, patch: errors.length ? null : { selectedDimensions, claims, chartSpecs } };
 }

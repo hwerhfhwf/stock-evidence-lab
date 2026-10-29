@@ -127,7 +127,7 @@ test('AI endpoint forwards an OpenAI-compatible request without returning the AP
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
         endpoint: 'https://api.example.com/v1', model: 'qwen-test', apiKey: 'user-session-key',
-        messages: [{ role: 'user', content: '分析经营质量' }], outputSchema: { type: 'object' },
+        messages: [{ role: 'user', content: '分析经营质量' }], outputSchema: { type: 'object' }, reasoningEffort: 'low',
       }),
     });
     const response = await worker.fetch(request, {}, {});
@@ -136,6 +136,7 @@ test('AI endpoint forwards an OpenAI-compatible request without returning the AP
     assert.equal(outbound.url, 'https://api.example.com/v1/chat/completions');
     assert.equal(outbound.headers.get('authorization'), 'Bearer user-session-key');
     assert.equal(outbound.body.model, 'qwen-test');
+    assert.equal(outbound.body.reasoning_effort, 'low');
     assert.equal(body.content, '{"claims":[]}');
     assert.equal(JSON.stringify(body).includes('user-session-key'), false);
   } finally {

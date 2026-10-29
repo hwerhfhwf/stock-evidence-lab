@@ -508,14 +508,15 @@ async function runAIResearch(question) {
     const result = await analyzeResearch({
       ...state.aiConnection,
       messages: [
-        { role: 'system', content: '你是 FinScope 公司研究编排器。只返回原始 JSON，不要 Markdown。只使用输入中的已有事实，不预测涨跌、不承诺收益、不给买卖建议。返回键仅为 selectedDimensions、claimIds、chartSpecs。selectedDimensions 从 operating_quality、financial_trend、valuation、market_characteristics、industry_position、material_events、risk 中选 1 至 4 个；claimIds 从 availableClaims 中选 1 至 3 个 ID，不得改写判断；chartSpecs 不确定时返回空数组，如生成只能引用 sourcePackage.fields 的 id，series 只含 fieldId 与可选 label，不得携带 data、values 或数值。' },
+        { role: 'system', content: '你是 FinScope 公司研究编排器。只返回原始 JSON，不要 Markdown。只使用输入中的已有事实，不预测涨跌、不承诺收益、不给买卖建议。严格返回形如 {"selectedDimensions":["operating_quality"],"claimIds":["复制 availableClaims 中的真实 id"],"chartSpecs":[]} 的对象。selectedDimensions 从 operating_quality、financial_trend、valuation、market_characteristics、industry_position、material_events、risk 中选 1 至 4 个；claimIds 必须逐字复制 availableClaims 中 1 至 3 个 id，不得自造或改写；chartSpecs 默认返回空数组，只有完全确定字段 id 时才生成。' },
         { role: 'user', content: JSON.stringify(createAIResearchContext({ question, sourcePackage: state.sourcePackage, defaultClaims: state.claims })) },
       ],
       tools: [],
       outputSchema: null,
+      reasoningEffort: 'low',
     });
     const validation = validateResearchPatch(parseResearchResponse(result.content), state.sourcePackage, state.claims);
-    if (!validation.ok) throw new Error(validation.errors.join('；'));
+    if (!validation.ok) throw new AIAdapterError(`模型返回结构不完整：${validation.errors.join('；')}`, 'invalid_research_structure');
     state.aiPreview = validation.patch;
     renderAIPreview();
     $('#ai-preview').scrollIntoView({ behavior: 'smooth', block: 'nearest' });

@@ -70,6 +70,9 @@ export async function analyzeWithAI(fetchFn, payload = {}, options = {}) {
     temperature: 0.1,
     max_tokens: 900,
   };
+  if (['minimal', 'low', 'medium', 'high'].includes(payload.reasoningEffort)) {
+    body.reasoning_effort = payload.reasoningEffort;
+  }
   if (Array.isArray(payload.tools) && payload.tools.length) body.tools = payload.tools.slice(0, 12);
   if (payload.outputSchema && typeof payload.outputSchema === 'object') {
     body.response_format = {
