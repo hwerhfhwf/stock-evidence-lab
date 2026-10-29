@@ -209,6 +209,11 @@ h2, h3 { letter-spacing: -.2px; }
 .hero-monogram span { color: var(--muted); font: 13px ui-monospace, monospace; }
 .composition-panel { grid-column: span 4; min-height: 258px; padding: 18px; border-bottom: 1px solid var(--border-soft); background: var(--surface); }
 .panel-heading, .section-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.section-actions { display: flex; align-items: center; justify-content: flex-end; gap: 12px; }
+.range-switch { display: inline-flex; padding: 2px; border: 1px solid #29485d; border-radius: 6px; background: #071824; }
+.section-heading .range-switch button { min-height: 30px; padding: 0 10px; border: 0; border-radius: 4px; background: transparent; color: #8ea8b8; font-size: 12px; font-weight: 650; }
+.section-heading .range-switch button[aria-pressed="true"] { background: #174867; color: #f2f8fb; }
+.section-heading .range-switch button:disabled { cursor: not-allowed; opacity: .42; }
 .panel-heading h2 { font-size: 17px; }
 .panel-heading > span { color: var(--muted); font-size: 13px; }
 .composition-chart { min-height: 166px; display: grid; align-items: center; }
@@ -234,6 +239,8 @@ h2, h3 { letter-spacing: -.2px; }
 .chart-svg .grid { stroke: #234257; stroke-width: 1; stroke-dasharray: 2 4; }
 .chart-svg .axis, .chart-svg .label, .chart-svg .value { fill: #a9bfcc; font-size: 12px; }
 .chart-svg .axis-title { fill: #dceaf1; font-size: 13px; font-weight: 700; }
+.chart-svg .y-axis-label { fill: #9db4c2; font: 11px ui-monospace, monospace; }
+.chart-svg .profit-axis { fill: #d8bc73; }
 .chart-svg .revenue { fill: var(--revenue); }
 .chart-svg .profit-line { fill: none; stroke: var(--profit); stroke-width: 2; }
 .chart-svg .price-area { fill: rgba(56, 189, 248, .13); }
@@ -419,6 +426,9 @@ h2, h3 { letter-spacing: -.2px; }
   .topbar { padding: 0 8px; }
   .top-action, .search-hint { display: none; }
   .company-search input, .research-task input, .ai-settings-panel input { font-size: 16px; }
+  .section-heading { align-items: stretch; flex-direction: column; }
+  .section-actions { justify-content: space-between; overflow-x: auto; }
+  .range-switch { flex: 0 0 auto; }
   .company-search input { padding-right: 10px; }
   .mode-switch button { padding: 0 7px; }
   .context-bar { align-items: flex-start; flex-wrap: wrap; gap: 10px; }

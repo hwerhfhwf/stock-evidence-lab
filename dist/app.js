@@ -4,6 +4,7 @@ import { createResearchClient, ResearchClientError } from '/data-client.js';
 import { normalizeResearchView } from '/research-view.js';
 import { buildResearchClaims, buildSourcePackage } from '/research-protocol.js';
 import { AIAdapterError, analyzeResearch, createAIResearchContext, parseResearchResponse, validateResearchPatch } from '/ai-adapter.js';
+import { renderOperatingChart, selectChartRange } from '/chart-exploration.js';
 import {
   buildBalanceFlow,
   buildCashCoverage,
@@ -48,6 +49,8 @@ const state = {
   researchHistory: [],
   opener: null,
   searchItems: [],
+  operatingRange: '8',
+  marketRange: '180',
 };
 
 const evidenceById = new Map(state.research.evidence.map(item => [item.id, item]));
@@ -202,47 +205,8 @@ export function renderDonutChart(composition) {
 
 function operatingSeries() {
   const quarterRows = state.view.financials.quarters?.filter(row => number(row.revenue) !== null || number(row.parentProfit) !== null) ?? [];
-  if (quarterRows.length) return quarterRows.slice(-8);
-  return (state.view.financials.annualSeries ?? []).slice(-8);
-}
-
-export function renderOperatingChart(rows) {
-  if (!rows?.length) return emptyState('经营趋势暂不可用', moduleError(state.bundle?.modules?.financials));
-  const width = 760;
-  const height = 225;
-  const left = 50;
-  const right = 28;
-  const top = 22;
-  const bottom = 43;
-  const plotWidth = width - left - right;
-  const plotHeight = height - top - bottom;
-  const revenues = rows.map(row => number(row.revenue));
-  const profits = rows.map(row => number(row.parentProfit));
-  const maxRevenue = Math.max(1, ...revenues.filter(value => value !== null).map(Math.abs));
-  const profitValues = profits.filter(value => value !== null);
-  const profitMin = Math.min(0, ...profitValues);
-  const profitMax = Math.max(1, ...profitValues);
-  const step = plotWidth / Math.max(1, rows.length);
-  const barWidth = Math.min(42, step * .48);
-  const revenueY = value => top + plotHeight - Math.abs(value) / maxRevenue * plotHeight;
-  const profitY = value => top + (profitMax - value) / Math.max(1, profitMax - profitMin) * plotHeight;
-  const points = rows.map((row, index) => number(row.parentProfit) === null ? null : `${left + step * (index + .5)},${profitY(number(row.parentProfit))}`).filter(Boolean).join(' ');
-  return `<svg class="chart-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="营业收入柱状图与归母净利润折线图，共 ${rows.length} 个报告期">
-    <line class="grid" x1="${left}" x2="${width - right}" y1="${top + plotHeight}" y2="${top + plotHeight}"/>
-    <line class="grid" x1="${left}" x2="${width - right}" y1="${top + plotHeight / 2}" y2="${top + plotHeight / 2}"/>
-    <text class="axis" x="${left}" y="14">金额 · 亿元</text>
-    ${rows.map((row, index) => {
-      const revenue = number(row.revenue);
-      const x = left + step * (index + .5);
-      const y = revenue === null ? top + plotHeight : revenueY(revenue);
-      const h = revenue === null ? 0 : top + plotHeight - y;
-      const label = reportLabel(row, String(index + 1)).replace(/^20/, '');
-      return `<rect class="revenue" x="${x - barWidth / 2}" y="${y}" width="${barWidth}" height="${h}" rx="3" opacity=".82"/><text class="label" x="${x}" y="${height - 18}" text-anchor="middle">${esc(label)}</text>`;
-    }).join('')}
-    ${points ? `<polyline class="profit-line" points="${points}"/>` : ''}
-    ${rows.map((row, index) => number(row.parentProfit) === null ? '' : `<circle cx="${left + step * (index + .5)}" cy="${profitY(number(row.parentProfit))}" r="3.5" fill="#42c7a8"/>`).join('')}
-    <g transform="translate(${width - 188} 10)"><rect width="10" height="10" rx="2" class="revenue"/><text class="axis" x="15" y="10">营业收入</text><line x1="86" x2="105" y1="5" y2="5" class="profit-line"/><text class="axis" x="112" y="10">归母净利润</text></g>
-  </svg>`;
+  const rows = quarterRows.length ? quarterRows : (state.view.financials.annualSeries ?? []);
+  return selectChartRange(rows, state.operatingRange);
 }
 
 function indicatorValue(id) {
@@ -252,6 +216,7 @@ function indicatorValue(id) {
 function renderOperating() {
   const rows = operatingSeries();
   $('#operating-chart').innerHTML = renderOperatingChart(rows);
+  $$('[data-operating-range]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.operatingRange === state.operatingRange)));
   const revenueGrowth = indicatorValue('calculate_operating_income_yoy_growth_ratio');
   const profitGrowth = indicatorValue('calculate_parent_holder_net_profit_yoy_growth_ratio');
   const cashContent = indicatorValue('net_profit_cash_content');
@@ -386,7 +351,14 @@ export function renderMarketChart(series) {
 }
 
 function renderMarket() {
-  $('#market-chart').innerHTML = renderMarketTracksChart(buildMarketTracks(state.view.market.series), []);
+  const fullSeries = state.view.market.series ?? [];
+  const rows = selectChartRange(fullSeries, state.marketRange);
+  const tracks = buildMarketTracks(rows);
+  $('#market-chart').innerHTML = renderMarketTracksChart(tracks, []);
+  $$('[data-market-range]').forEach(button => {
+    button.setAttribute('aria-pressed', String(button.dataset.marketRange === state.marketRange));
+    button.disabled = fullSeries.filter(row => number(row.close_price) !== null).length < 2;
+  });
   const signals = state.view.market.signals ?? {};
   const metrics = [
     ['20 日收益', formatPct(signals.return20)],
@@ -396,7 +368,7 @@ function renderMarket() {
     ['60 日均线', formatPrice(signals.ma60)],
   ];
   $('#market-kpis').innerHTML = metrics.map(([label, value]) => `<div><span>${label}</span><strong>${value}</strong></div>`).join('');
-  $('#market-period').textContent = signals.range ? `前复权日线 · ${signals.range.start} — ${signals.range.end}` : '前复权日线 · 区间数据不可用';
+  $('#market-period').textContent = tracks.range.start && tracks.range.end ? `前复权日线 · ${formatDate(tracks.range.start)} — ${formatDate(tracks.range.end)}` : '前复权日线 · 行情数据未返回';
 }
 
 const directionLabels = {
@@ -953,6 +925,8 @@ document.addEventListener('pointerdown', event => {
 });
 
 document.addEventListener('click', event => {
+  const operatingRangeTrigger = event.target.closest('[data-operating-range]');
+  const marketRangeTrigger = event.target.closest('[data-market-range]');
   const dimensionTrigger = event.target.closest('[data-dimension]');
   const evidenceTrigger = event.target.closest('[data-evidence]');
   const fieldTrigger = event.target.closest('[data-field-refs]');
@@ -961,6 +935,16 @@ document.addEventListener('click', event => {
   const sourceTrigger = event.target.closest('[data-source]');
   const moduleTrigger = event.target.closest('[data-module]');
   const action = event.target.closest('[data-action]')?.dataset.action;
+  if (operatingRangeTrigger) {
+    state.operatingRange = operatingRangeTrigger.dataset.operatingRange;
+    renderOperating();
+    return;
+  }
+  if (marketRangeTrigger) {
+    state.marketRange = marketRangeTrigger.dataset.marketRange;
+    renderMarket();
+    return;
+  }
   if (dimensionTrigger) {
     state.selectedDimensions = [dimensionTrigger.dataset.dimension, ...state.selectedDimensions.filter(id => id !== dimensionTrigger.dataset.dimension)];
     renderDimensionRail();

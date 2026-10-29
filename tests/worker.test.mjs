@@ -23,6 +23,13 @@ test('worker serves the multidimensional diagnosis model as a same-origin module
   assert.equal(response.headers.get('cache-control'), 'no-store');
 });
 
+test('worker serves chart exploration helpers as a same-origin module', async () => {
+  const response = await worker.fetch(new Request('https://example.test/chart-exploration.js'), {}, {});
+  assert.equal(response.status, 200);
+  assert.match(response.headers.get('content-type'), /text\/javascript/);
+  assert.match(await response.text(), /selectChartRange/);
+});
+
 test('worker does not cache unhashed client scripts across UI revisions', async () => {
   const response = await worker.fetch(new Request('https://example.test/app.js'), {}, {});
   assert.equal(response.headers.get('cache-control'), 'no-store');

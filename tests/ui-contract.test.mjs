@@ -51,6 +51,17 @@ test('charts are accessible svg views with direct labels and explicit unavailabl
   assert.match(app, /aria-label=/);
 });
 
+test('operating and market charts expose keyboard operable time ranges', () => {
+  assert.match(html, /role="group" aria-label="经营图表区间"/);
+  assert.match(html, /data-operating-range="4"/);
+  assert.match(html, /data-operating-range="all"/);
+  assert.match(html, /role="group" aria-label="行情图表区间"/);
+  assert.match(html, /data-market-range="20"/);
+  assert.match(html, /data-market-range="all"/);
+  assert.match(app, /selectChartRange/);
+  assert.match(css, /\.range-switch button\[aria-pressed="true"\]/);
+});
+
 test('continuous canvas exposes one compact context bar and six linked research dimensions', () => {
   for (const token of ['context-bar', 'research-canvas', 'canvas-section', 'dimension-rail', 'company-context']) {
     assert.match(html, new RegExp(token), token);

@@ -2,6 +2,27 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { buildWorkbench } from '../ui/diagnosis-model.js';
 import { BYD_SNAPSHOT, createBydDemoBundle, deriveBydResearch, factsForMode } from '../ui/finscope-data.js';
+import { renderOperatingChart, selectChartRange } from '../ui/chart-exploration.js';
+
+test('chart range selection keeps the latest real observations without padding', () => {
+ const rows=Array.from({length:10},(_,index)=>({label:`P${index+1}`,revenue:(index+1)*100_000_000,parentProfit:(index+1)*10_000_000}));
+ assert.deepEqual(selectChartRange(rows,'4').map(row=>row.label),['P7','P8','P9','P10']);
+ assert.equal(selectChartRange(rows,'all').length,10);
+ assert.equal(selectChartRange(rows,'60').length,10);
+});
+
+test('operating chart renders numeric revenue and profit axes with units', () => {
+ const html=renderOperatingChart([
+  {label:'2025Q1',revenue:100_000_000_000,parentProfit:5_000_000_000},
+  {label:'2026Q1',revenue:120_000_000_000,parentProfit:4_000_000_000},
+ ]);
+ assert.match(html,/营业收入（亿元）/);
+ assert.match(html,/归母净利润（亿元）/);
+ assert.match(html,/class="y-axis-label revenue-axis"/);
+ assert.match(html,/class="y-axis-label profit-axis"/);
+ assert.match(html,/>1,200</);
+ assert.match(html,/>50</);
+});
 
 test('seven dimensions expose complete subquestions without treating inference as coverage',()=>{
  const w=buildWorkbench({modules:{}},{name:'公司'},'');

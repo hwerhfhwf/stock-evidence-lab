@@ -65,19 +65,29 @@ export function buildBalanceFlow(values = {}) {
 export function renderBalanceFlowChart(model, sourceRefs = []) {
   if (!model) return '<div class="empty-state"><strong>资产负债结构暂不可用</strong><span>缺少可核对的资产或负债</span></div>';
   const yi = value => `${Number(value).toLocaleString('zh-CN', { maximumFractionDigits: 1 })} 亿`;
+  const pct = value => `${Number(value).toFixed(1)}%`;
   const x0 = 44;
-  const width = 632;
+  const width = 672;
   const liabilityWidth = width * model.sourceWidths.liabilities / 100;
   const cashWidth = model.useWidths.cash === null ? 0 : width * model.useWidths.cash / 100;
   const currentWidth = model.useWidths.otherCurrent === null ? 0 : width * model.useWidths.otherCurrent / 100;
-  return `<svg class="chart-svg balance-flow" viewBox="0 0 720 184" role="img" tabindex="0" data-source-ref="${refs(sourceRefs)}" aria-label="资产配置与负债权益资金来源">
-    <text x="44" y="16" class="axis">资产配置</text><text x="676" y="16" text-anchor="end" class="axis">合计 ${yi(model.assets)}</text>
-    <rect x="${x0}" y="29" width="${cashWidth}" height="34" fill="#2DD4BF"/><rect x="${x0 + cashWidth}" y="29" width="${currentWidth}" height="34" fill="#6C91FF"/><rect x="${x0 + cashWidth + currentWidth}" y="29" width="${width - cashWidth - currentWidth}" height="34" fill="#345B91"/>
-    <text x="${x0 + 5}" y="51" class="flow-label">现金 ${model.uses.cash === null ? '—' : yi(model.uses.cash)}</text><text x="${x0 + cashWidth + 6}" y="51" class="flow-label">其他流动资产</text><text x="${x0 + cashWidth + currentWidth + 6}" y="51" class="flow-label">非流动资产</text>
-    <path d="M44 82H676" stroke="#315166" stroke-dasharray="3 4"/><text x="360" y="91" text-anchor="middle" class="identity">资产 = 负债 + 权益</text>
-    <text x="44" y="118" class="axis">资金来源</text>
-    <rect x="${x0}" y="130" width="${liabilityWidth}" height="34" fill="#A78BFA"/><rect x="${x0 + liabilityWidth}" y="130" width="${width - liabilityWidth}" height="34" fill="#38C6C3"/>
-    <text x="${x0 + 6}" y="152" class="flow-label">负债 ${yi(model.liabilities)} · ${model.sourceWidths.liabilities.toFixed(1)}%</text><text x="${x0 + liabilityWidth + 6}" y="152" class="flow-label">权益 ${yi(model.equity)} · ${model.sourceWidths.equity.toFixed(1)}%</text>
+  const assetLegend = [
+    ['现金', model.uses.cash, model.useWidths.cash, '#2DD4BF'],
+    ['其他流动资产', model.uses.otherCurrent, model.useWidths.otherCurrent, '#6C91FF'],
+    ['非流动资产', model.uses.nonCurrent, model.useWidths.nonCurrent, '#345B91'],
+  ];
+  const sourceLegend = [
+    ['负债', model.liabilities, model.sourceWidths.liabilities, '#A78BFA'],
+    ['权益', model.equity, model.sourceWidths.equity, '#38C6C3'],
+  ];
+  return `<svg class="chart-svg balance-flow" viewBox="0 0 760 250" role="img" tabindex="0" data-source-ref="${refs(sourceRefs)}" aria-label="资产配置与负债权益资金来源">
+    <text x="44" y="18" class="axis-title">资产配置</text><text x="716" y="18" text-anchor="end" class="axis">合计 ${yi(model.assets)}</text>
+    <g class="balance-stack asset-stack"><rect x="${x0}" y="32" width="${cashWidth}" height="26" fill="#2DD4BF"/><rect x="${x0 + cashWidth}" y="32" width="${currentWidth}" height="26" fill="#6C91FF"/><rect x="${x0 + cashWidth + currentWidth}" y="32" width="${width - cashWidth - currentWidth}" height="26" fill="#345B91"/></g>
+    <g class="balance-legend asset-legend">${assetLegend.map((item, index) => `<g transform="translate(${44 + index * 224} 76)"><rect width="10" height="10" rx="2" fill="${item[3]}"/><text x="17" y="10">${item[1] === null ? `${esc(item[0])} —` : `${esc(item[0])} ${yi(item[1])} · ${pct(item[2])}`}</text></g>`).join('')}</g>
+    <path d="M44 112H716" stroke="#315166" stroke-dasharray="3 5"/><text x="380" y="129" text-anchor="middle" class="identity">资产 = 负债 + 权益</text>
+    <text x="44" y="158" class="axis-title">资金来源</text><text x="716" y="158" text-anchor="end" class="axis">合计 ${yi(model.assets)}</text>
+    <g class="balance-stack source-stack"><rect x="${x0}" y="172" width="${liabilityWidth}" height="26" fill="#A78BFA"/><rect x="${x0 + liabilityWidth}" y="172" width="${width - liabilityWidth}" height="26" fill="#38C6C3"/></g>
+    <g class="balance-legend source-legend">${sourceLegend.map((item, index) => `<g transform="translate(${44 + index * 336} 217)"><rect width="10" height="10" rx="2" fill="${item[3]}"/><text x="17" y="10">${esc(item[0])} ${yi(item[1])} · ${pct(item[2])}</text></g>`).join('')}</g>
   </svg>`;
 }
 
@@ -88,20 +98,29 @@ export function buildCashCoverage(values = {}) {
   const usableCash = Math.max(0, cfo);
   const covered = round(Math.min(usableCash, capex));
   const uncovered = round(Math.max(0, capex - usableCash));
-  return { cfo: round(cfo), capex: round(capex), covered, uncovered, coveragePct: capex === 0 ? null : round(cfo / capex * 100), periodLabel: String(values.periodLabel ?? '') };
+  const surplus = round(Math.max(0, usableCash - capex));
+  const coveragePct = capex === 0 ? null : round(cfo / capex * 100);
+  const coveredPct = capex === 0 ? null : round(covered / capex * 100);
+  const gapPct = capex === 0 ? null : round(uncovered / capex * 100);
+  const state = surplus > 0 ? 'surplus' : uncovered > 0 ? 'shortfall' : 'covered';
+  return { cfo: round(cfo), capex: round(capex), covered, uncovered, surplus, coveragePct, coveredPct, gapPct, state, periodLabel: String(values.periodLabel ?? '') };
 }
 
 export function renderCashCoverageChart(model, sourceRefs = []) {
   if (!model) return '<div class="empty-state"><strong>现金覆盖暂不可用</strong><span>缺少经营现金流或资本开支</span></div>';
-  const total = Math.max(model.capex, model.cfo, 1);
-  const width = 520;
-  const coveredWidth = width * model.covered / total;
-  const uncoveredWidth = width * model.uncovered / total;
-  return `<svg class="chart-svg cash-coverage" viewBox="0 0 620 150" role="img" tabindex="0" data-source-ref="${refs(sourceRefs)}" aria-label="经营现金流对资本开支的覆盖">
-    <text x="22" y="18" class="axis">${model.periodLabel ? `${model.periodLabel} · ` : ''}亿元</text><text x="598" y="18" text-anchor="end" class="axis">经营现金 / 资本开支 = ${model.coveragePct === null ? '—' : `${model.coveragePct.toFixed(1)}%`}</text>
-    <text x="22" y="53" class="label">资本开支</text><rect x="78" y="34" width="${width}" height="28" rx="3" fill="#17364A"/><rect x="78" y="34" width="${coveredWidth}" height="28" rx="3" fill="#2DD4BF"/><rect x="${78 + coveredWidth}" y="34" width="${uncoveredWidth}" height="28" fill="#F59E0B" opacity=".72"/>
-    <text x="78" y="86" class="label">经营现金 ${model.cfo.toFixed(1)}</text><text x="598" y="86" text-anchor="end" class="label">资本开支 ${model.capex.toFixed(1)}</text>
-    <line x1="78" x2="598" y1="102" y2="102" stroke="#284A60"/><text x="78" y="126" class="flow-label">已覆盖 ${model.covered.toFixed(1)}</text><text x="598" y="126" text-anchor="end" class="negative-label">未覆盖 ${model.uncovered.toFixed(1)}</text>
+  const width = 536;
+  const coveredWidth = width * Math.max(0, Math.min(100, model.coveredPct ?? 0)) / 100;
+  const gapWidth = width - coveredWidth;
+  const coverage = model.coveragePct === null ? '—' : `${model.coveragePct.toFixed(1)}%`;
+  const secondary = model.state === 'surplus'
+    ? `<g class="coverage-segment surplus"><rect x="42" y="132" width="10" height="10" rx="2" fill="none" stroke="#2DD4BF" stroke-width="2"/><text x="60" y="142">覆盖后结余 ${model.surplus.toFixed(1)} 亿</text></g>`
+    : `<g class="coverage-segment shortfall"><rect x="334" y="108" width="10" height="10" rx="2" fill="#F59E0B"/><text x="352" y="118">资金缺口 ${model.uncovered.toFixed(1)} 亿 · ${(model.gapPct ?? 0).toFixed(1)}%</text></g>`;
+  return `<svg class="chart-svg cash-coverage" viewBox="0 0 620 166" role="img" tabindex="0" data-source-ref="${refs(sourceRefs)}" aria-label="经营现金流对资本开支的覆盖">
+    <text x="42" y="20" class="axis-title">${model.periodLabel ? `${model.periodLabel} · ` : ''}资本开支 ${model.capex.toFixed(1)} 亿</text><text x="578" y="20" text-anchor="end" class="coverage-ratio">覆盖率 ${coverage}</text>
+    <rect x="42" y="42" width="${width}" height="34" rx="4" fill="#17364A"/>
+    <g class="coverage-segment covered"><rect x="42" y="42" width="${coveredWidth}" height="34" rx="4" fill="#2DD4BF"/><text x="60" y="118">经营现金覆盖 ${model.covered.toFixed(1)} 亿 · ${(model.coveredPct ?? 0).toFixed(1)}%</text></g>
+    ${gapWidth > 0 ? `<g class="coverage-bar-shortfall"><rect x="${42 + coveredWidth}" y="42" width="${gapWidth}" height="34" fill="#F59E0B" opacity=".86"/></g>` : ''}
+    ${secondary}
   </svg>`;
 }
 
