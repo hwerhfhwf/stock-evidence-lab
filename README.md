@@ -1,75 +1,47 @@
 # FinScope
 
-FinScope 是一个可操作的 AI Native A 股公司研究工作台。它把公司与业务、经营与盈利、财务与现金、估值、行情、行业位置及事件风险组织成一条连续研究链；用户看到的是数据关系、证据方向和待验证变量，不是“好 / 坏”标签或买卖建议。
+AI Native A 股公司研究工作台。以数据关系和证据链呈现公司状态，不输出“好 / 坏”标签、涨跌预测或买卖建议。
 
-- Web 产品：[stock-evidence-lab-midea.violet-lotus-6432.chatgpt.site](https://stock-evidence-lab-midea.violet-lotus-6432.chatgpt.site)
-- 公共源码：[github.com/hwerhfhwf/stock-evidence-lab](https://github.com/hwerhfhwf/stock-evidence-lab)
+[在线产品](https://stock-evidence-lab-midea.violet-lotus-6432.chatgpt.site) · [公共源码](https://github.com/hwerhfhwf/stock-evidence-lab)
 
-## 产品截图
+## 产品
 
-实时 A 股公司研究工作台：
+| 能力 | 结果 |
+| --- | --- |
+| A 股换股 | 搜索名称或代码，重建公司、财务、估值、行情和证据；不沿用上一家公司内容。 |
+| 关系可视化 | 串联收入、利润、现金与资本结构；经营和行情图支持区间切换。 |
+| 证据表达 | 区分事实、推断、未验证；标注支持、压力、方向分化和未知。 |
+| 继续研究 | 从结论进入财务期次、行情区间、同行比较、待验证问题和原始来源。 |
+| AI 研究助手 | 可换股、回答自定义问题并生成研究草稿；确定性数值仍由程序计算。 |
 
-![FinScope 桌面版研究工作台](docs/finscope-desktop.png)
+![FinScope 研究工作台](docs/finscope-desktop.png)
 
-AI 研究助手：连接临时模型后，围绕当前公司和研究问题生成受约束的证据关系、判断与图表草稿，先预览再应用。
+![FinScope AI 研究助手](docs/finscope-ai-research.png)
 
-![FinScope AI 研究助手使用效果](docs/finscope-ai-research.png)
+## AI Native 分工
 
-财务关系图：现金覆盖以资本开支为共同分母；资产配置与负债/权益分别显示比例、数值和会计恒等式。
+| 程序负责 | 模型负责 |
+| --- | --- |
+| 拉取数据、统一口径、计算指标、校验证据与图表 | 选择研究维度、组织证据关系、生成受约束的解读草稿 |
 
-![FinScope 财务关系图](docs/finscope-financials.png)
+模型只能引用标准化 `SourcePackage` 中的字段。`ResearchClaim` 与 `ChartSpec` 校验失败时，保留默认研究，不替换数值。
 
-## 产品价值
+- 不连接模型：换股、确定性分析、结构化证据和钻取均可使用。
+- 连接模型：点击“连接模型”，填写兼容 OpenAI 的端点、模型与临时 API Key；真实请求验证通过后生效。
+- 密钥：仅在当前请求内存中转发，不写入浏览器存储、仓库或日志。
 
-- 搜索 A 股名称或代码，实时重建该公司的完整研究画布，不复用上一家公司的内容。
-- 在 AI 输入框中直接输入“换成美的集团”或 `000333.SZ`，也会触发同一套换股重建流程。
-- 首屏同时看到公司业务、最新行情、收入构成、经营趋势和关键指标。
-- 收入、利润、经营现金和资产负债按相邻关系呈现，减少孤立数字。
-- 经营趋势提供收入/归母净利润双纵轴与 4 期、8 期、全部切换；行情将价格、年化波动率、回撤放在同一时间区间，并支持 20/60/180 日与全部切换。
-- PE、PB、PS、PCF 保留原口径和缺失值，不把 `null` 显示成 0。
-- 区分客观事实、分析推断与暂无法验证的信息；正面、负面、指标方向分化和未知证据绑定到具体命题。
-- 从命题钻取至财务期次、行情区间、同行比较或待验证问题，并继续查看原字段、单位、口径、时点和来源链接。
-- 连接任意 OpenAI 兼容模型后，模型只编排研究维度、证据关系与白名单图表；确定性数值仍由程序计算并经结构校验。
-- 简明与专业模式共用事实；专业模式只增加原值和口径细节。
+默认预置 Gemini 的 [OpenAI compatibility](https://ai.google.dev/gemini-api/docs/openai/) 端点，也支持其他兼容接口。
 
-## 数据架构
+## 数据与可信边界
 
-采用“**扶摇主数据 + iFinD 可选增强**”的架构：
+| 数据源 | 用途 |
+| --- | --- |
+| **扶摇主数据** | A 股搜索、行情、K 线、财务、指标和最新估值。 |
+| 东方财富 F10 | 公司概况与行业文本；与扶摇财务字段分开标注。 |
+| **iFinD 可选增强** | 新闻、政策、宏观和跨市场语境。 |
+| 公开披露 | 分部收入等接口未覆盖字段。 |
 
-- 扶摇提供公司搜索、A 股行情快照、前复权历史 K 线、三张财务报表、财务指标和最新估值。
-- 东方财富 F10 补充公司概况与行业文本，来源在公司模块单独标注，不与扶摇财务字段混用。
-- iFinD 可选增强新闻、政策、宏观及跨市场语境。当前代码保留服务端边界；未配置时只让事件语境模块降级，不影响扶摇模块。
-- 比亚迪 2025 年分产品收入来自公开年报，因为当前扶摇 bundle 不含分部收入。实时服务失败时，页面明确切换为“**公开披露快照**”，不冒充实时行情。
-- 任一数据源失败都按**模块级降级**处理：已成功模块继续展示，失败模块显示具体原因。
-
-浏览器只调用同源接口：
-
-```text
-GET /api/search?q=比亚迪
-GET /api/research?thscode=002594.SZ&name=比亚迪
-```
-
-服务端返回 `profile`、`market`、`financials`、`indicators`、`valuation`、`industry`、`context` 七个独立状态。缺失、过期或接口失败的信息不补零、不生成正常结论。
-
-## AI Native 研究协议
-
-默认工作台无需模型即可完成确定性计算、证据分组、可见对话与钻取。用户可在页面中临时输入 OpenAI 兼容的 `endpoint + model + apiKey`，请求经同源 Worker 转发；密钥不写入浏览器存储、仓库或日志，仅随本次请求在内存中转发。
-
-模型接收标准化 `SourcePackage`，输出受约束的 `ResearchClaim` 与 `ChartSpec`：
-
-- 事实只能引用 SourcePackage 中已有字段；模型不能提交替代数值或任意代码。
-- `fact | inference | unverified` 与 `positive | negative | conflicting | unknown` 分别表达认知状态和证据方向。
-- 图表类型、字段引用和来源引用均使用白名单校验；校验失败时保留默认研究。
-- 模型结果先预览，用户应用后仍可撤销；换股时模型草稿和自定义图表全部清空。
-- AI 或外部数据不可用时，仅对应能力降级，确定性研究画布继续工作。
-
-### 体验 AI 研究助手
-
-1. 不连接模型也可直接输入“你好”、A 股名称/代码或自定义研究问题；助手会返回当前数据范围内的结构化证据，并保留未知项。
-2. 如需 LLM 补充，点击“连接模型”。Gemini 官方 OpenAI 兼容端点和 Flash 模型已预置；粘贴临时 API Key，点击“连接当前模型”。连接必须通过真实请求验证后才生效。
-3. 继续提问。确定性证据先在对话中返回；模型只选择现有维度、可信判断和白名单图表，结果进入预览区，不会直接覆盖默认研究。
-
-默认配置依据 [Gemini API 的 OpenAI compatibility 文档](https://ai.google.dev/gemini-api/docs/openai/)。Provider 适配层仍接受其他 OpenAI 兼容接口。API Key 不写入持久化存储，输入框会在连接尝试后清空；刷新或关闭页面后失效。
+浏览器只访问同源 `/api/search` 与 `/api/research`。数据缺失、过期、冲突或调用失败时执行**模块级降级**：保留成功模块，失败位置显示原因；实时服务不可用时明确标注“**公开披露快照**”。
 
 ## 本地运行
 
@@ -81,49 +53,31 @@ npm run build
 npm run serve
 ```
 
-打开 `http://127.0.0.1:4173/`。未配置密钥时仍可查看明确标注的比亚迪披露快照。
-
-如需扶摇实时数据，只在服务端环境设置：
+打开 `http://127.0.0.1:4173/`。启用扶摇实时数据：
 
 ```powershell
-$env:FUYAO_API_KEY = '在本地会话或部署平台设置'
+$env:FUYAO_API_KEY = '仅在本地会话或部署平台设置'
 npm run serve
 ```
 
-`FUYAO_API_KEY` 仅由 Worker 读取，不进入浏览器脚本、构建产物或接口响应。iFinD 的账户专属 MCP 配置也必须留在服务端；仓库不包含密钥或生成配置。
+`FUYAO_API_KEY` 仅由 Worker 读取。iFinD 配置同样留在服务端。
 
 ## 代码结构
 
-- `worker/fuyao.js`：扶摇允许列表、输入校验、请求与错误规范化。
-- `worker/research.js`：研究 bundle、行情指标和模块级降级。
-- `worker/company-profile.js`：公司概况的受限服务端适配器。
-- `worker/ifind.js`：iFinD 可选服务端边界。
-- `worker/ai.js`：OpenAI 兼容 Provider 适配层、端点校验与安全错误。
-- `ui/data-client.js`：浏览器同源数据客户端。
-- `ui/research-view.js`：纯函数视图模型、累计报表单季换算及披露后备。
-- `ui/research-protocol.js`：SourcePackage、ResearchClaim、维度选择与证据约束。
-- `ui/ai-adapter.js`：模型结果解析、ChartSpec 白名单和来源校验。
-- `ui/assistant-intent.js`：问候、A 股换股与研究问题的意图路由；确定性证据回复。
-- `ui/chart-exploration.js`：经营图双轴、时间区间选择与可访问图表输出。
-- `ui/app.js`：搜索、换股重建、图表、证据抽屉、报告风险图和 AI 预览/撤销。
-- `ui/finscope-data.js`：比亚迪公开披露快照及页码级证据。
-- `tests/`：计算、来源、缺失状态、接口安全、UI、文档与发布契约。
+| 层级 | 目录 | 职责 |
+| --- | --- | --- |
+| 数据服务 | `worker/` | 数据接入、输入校验、密钥隔离和模块降级。 |
+| 研究内核 | `ui/research-view.js`、`ui/research-protocol.js` | 口径统一、确定性计算和证据约束。 |
+| 产品交互 | `ui/app.js`、`ui/assistant-intent.js`、`ui/chart-exploration.js` | 换股、图表、钻取和 AI 研究。 |
+| 质量保障 | `tests/` | 计算、来源、缺失状态、接口、UI 和发布验证。 |
 
-## 验证
+详见 [数据架构](docs/live-data-architecture.md) 与 [交付说明](docs/product-handoff.md)。
 
-```powershell
-npm test
-npm run build
-```
+## 当前边界
 
-测试覆盖搜索编码、密钥隔离、部分上游失败、估值空值、累计报表单季换算、图表缺失值、证据回溯、四类证据、四类钻取、AI 结构校验、换股隔离、响应式与发布物一致性。详细架构见 [docs/live-data-architecture.md](docs/live-data-architecture.md)，产品交付说明见 [docs/product-handoff.md](docs/product-handoff.md)。
-
-## 已知边界
-
-- 当前扶摇接口只提供最新估值快照，未提供历史估值分位。
-- 公司行业文本已接入，但同日同口径同行样本尚未完成，因此不生成行业排名。
-- iFinD 需要账户侧生成的 MCP 配置；未配置时不伪造新闻或政策影响。
-- 分部收入仅在有公开披露快照的公司展示；其他公司明确显示缺失。
-- 合并财报不能单独识别价格、销量和产品结构对收入的独立贡献。
+- 扶摇仅提供最新估值快照，暂不计算历史估值分位。
+- 同日同口径同行样本未完成，不生成行业排名。
+- iFinD 未配置时，不生成新闻、政策或宏观影响判断。
+- 合并财报不能单独识别价格、销量和产品结构的贡献。
 
 FinScope 仅作研究辅助，不构成投资建议。
