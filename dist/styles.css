@@ -412,6 +412,8 @@ h2, h3 { letter-spacing: -.2px; }
   .research-task #run-diagnosis { grid-column: 3; grid-row: 1 / span 2; align-self: stretch; }
   .ai-settings-panel { grid-template-columns: 1fr 1fr; }
   .ai-settings-intro { border-right: 0; }
+  .finance-layout, .market-layout { grid-template-columns: 1fr; }
+  .finance-layout > article + article, .market-kpis { border-left: 0; border-top: 1px solid var(--border-soft); }
 }
 
 @media (max-width: 768px) {
@@ -425,8 +427,6 @@ h2, h3 { letter-spacing: -.2px; }
   .business-hero, .primary-chart-panel { border-right: 0; }
   .kpi-rail { grid-template-columns: repeat(4, 1fr); grid-template-rows: auto; }
   .kpi-card { border-right: 1px solid var(--border-soft); border-bottom: 0; }
-  .finance-layout, .market-layout { grid-template-columns: 1fr; }
-  .finance-layout > article + article, .market-kpis { border-left: 0; border-top: 1px solid var(--border-soft); }
   .event-list { grid-template-columns: 1fr 1fr; }
   .report-risk-layout { grid-template-columns: 190px minmax(0, 1fr); }
   .risk-node-row { grid-template-columns: 1fr 1fr; }

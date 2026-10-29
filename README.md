@@ -15,11 +15,17 @@ AI 研究助手：连接临时模型后，围绕当前公司和研究问题生�
 
 ![FinScope AI 研究助手使用效果](docs/finscope-ai-research.png)
 
+财务关系图：现金覆盖以资本开支为共同分母；资产配置与负债/权益分别显示比例、数值和会计恒等式。
+
+![FinScope 财务关系图](docs/finscope-financials.png)
+
 ## 产品价值
 
 - 搜索 A 股名称或代码，实时重建该公司的完整研究画布，不复用上一家公司的内容。
+- 在 AI 输入框中直接输入“换成美的集团”或 `000333.SZ`，也会触发同一套换股重建流程。
 - 首屏同时看到公司业务、最新行情、收入构成、经营趋势和关键指标。
 - 收入、利润、经营现金和资产负债按相邻关系呈现，减少孤立数字。
+- 经营趋势提供收入/归母净利润双纵轴与 4 期、8 期、全部切换；行情将价格、年化波动率、回撤放在同一时间区间，并支持 20/60/180 日与全部切换。
 - PE、PB、PS、PCF 保留原口径和缺失值，不把 `null` 显示成 0。
 - 区分客观事实、分析推断与暂无法验证的信息；正面、负面、指标方向分化和未知证据绑定到具体命题。
 - 从命题钻取至财务期次、行情区间、同行比较或待验证问题，并继续查看原字段、单位、口径、时点和来源链接。
@@ -47,7 +53,7 @@ GET /api/research?thscode=002594.SZ&name=比亚迪
 
 ## AI Native 研究协议
 
-默认工作台无需模型即可完成确定性计算、证据分组与钻取。用户可在页面中临时输入 OpenAI 兼容的 `endpoint + model + apiKey`，请求经同源 Worker 转发；密钥不写入浏览器存储、仓库或日志。
+默认工作台无需模型即可完成确定性计算、证据分组、可见对话与钻取。用户可在页面中临时输入 OpenAI 兼容的 `endpoint + model + apiKey`，请求经同源 Worker 转发；密钥不写入浏览器存储、仓库或日志，仅随本次请求在内存中转发。
 
 模型接收标准化 `SourcePackage`，输出受约束的 `ResearchClaim` 与 `ChartSpec`：
 
@@ -59,11 +65,11 @@ GET /api/research?thscode=002594.SZ&name=比亚迪
 
 ### 体验 AI 研究助手
 
-1. 点击工作台顶部的“连接 Gemini / 兼容模型”。
-2. Gemini 官方 OpenAI 兼容端点和 Flash 模型已预置；粘贴临时 API Key，点击“连接当前模型”。
-3. 输入研究问题并选择“生成 AI 研究补充”。模型结果会先进入预览区，不会直接覆盖默认研究。
+1. 不连接模型也可直接输入“你好”、A 股名称/代码或自定义研究问题；助手会返回当前数据范围内的结构化证据，并保留未知项。
+2. 如需 LLM 补充，点击“连接模型”。Gemini 官方 OpenAI 兼容端点和 Flash 模型已预置；粘贴临时 API Key，点击“连接当前模型”。连接必须通过真实请求验证后才生效。
+3. 继续提问。确定性证据先在对话中返回；模型只选择现有维度、可信判断和白名单图表，结果进入预览区，不会直接覆盖默认研究。
 
-默认配置依据 [Gemini API 的 OpenAI compatibility 文档](https://ai.google.dev/gemini-api/docs/openai/)。Provider 适配层仍接受其他 OpenAI 兼容接口。API Key 只保留在当前页面内存，输入框会在连接后清空；刷新或关闭页面后失效。
+默认配置依据 [Gemini API 的 OpenAI compatibility 文档](https://ai.google.dev/gemini-api/docs/openai/)。Provider 适配层仍接受其他 OpenAI 兼容接口。API Key 不写入持久化存储，输入框会在连接尝试后清空；刷新或关闭页面后失效。
 
 ## 本地运行
 
@@ -97,6 +103,8 @@ npm run serve
 - `ui/research-view.js`：纯函数视图模型、累计报表单季换算及披露后备。
 - `ui/research-protocol.js`：SourcePackage、ResearchClaim、维度选择与证据约束。
 - `ui/ai-adapter.js`：模型结果解析、ChartSpec 白名单和来源校验。
+- `ui/assistant-intent.js`：问候、A 股换股与研究问题的意图路由；确定性证据回复。
+- `ui/chart-exploration.js`：经营图双轴、时间区间选择与可访问图表输出。
 - `ui/app.js`：搜索、换股重建、图表、证据抽屉、报告风险图和 AI 预览/撤销。
 - `ui/finscope-data.js`：比亚迪公开披露快照及页码级证据。
 - `tests/`：计算、来源、缺失状态、接口安全、UI、文档与发布契约。
