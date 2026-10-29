@@ -7,6 +7,7 @@ import {
   buildProfitConversion,
   renderBalanceFlowChart,
   renderCashCoverageChart,
+  renderMarketTracksChart,
   renderProfitConversionChart,
 } from '../ui/chart-spec.js';
 
@@ -81,4 +82,17 @@ test('three market tracks preserve missing observations and use the same interva
   assert.deepEqual(tracks.drawdown.map(point => point.value), [0, -10, null, -1]);
   assert.equal(tracks.range.start, 1);
   assert.equal(tracks.range.end, 4);
+});
+
+test('market tracks expose readable dates and numeric ranges instead of raw timestamps', () => {
+  const rows = [
+    { date_ms: Date.UTC(2026, 0, 1), close_price: 100 },
+    { date_ms: Date.UTC(2026, 0, 2), close_price: 104 },
+    { date_ms: Date.UTC(2026, 0, 5), close_price: 102 },
+  ];
+  const html = renderMarketTracksChart(buildMarketTracks(rows), ['FUYAO']);
+  assert.match(html, /2026-01-01/);
+  assert.match(html, /2026-01-05/);
+  assert.match(html, /104\.00/);
+  assert.doesNotMatch(html, /1767225600000/);
 });

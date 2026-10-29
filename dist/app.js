@@ -5,6 +5,7 @@ import { normalizeResearchView } from '/research-view.js';
 import { buildResearchClaims, buildSourcePackage } from '/research-protocol.js';
 import { AIAdapterError, analyzeResearch, createAIResearchContext, parseResearchResponse, validateResearchPatch } from '/ai-adapter.js';
 import { renderOperatingChart, selectChartRange } from '/chart-exploration.js';
+import { buildEvidenceReply, classifyAssistantInput, normalizeAshareCode } from '/assistant-intent.js';
 import {
   buildBalanceFlow,
   buildCashCoverage,
@@ -51,6 +52,7 @@ const state = {
   searchItems: [],
   operatingRange: '8',
   marketRange: '180',
+  assistantMessages: [],
 };
 
 const evidenceById = new Map(state.research.evidence.map(item => [item.id, item]));
@@ -128,6 +130,32 @@ function showToast(message) {
 
 function emptyState(title, detail = '暂无数据') {
   return `<div class="empty-state"><strong>${esc(title)}</strong><span>${esc(detail)}</span></div>`;
+}
+
+function assistantMarker(status) {
+  return status === 'inference' ? 'inference' : status === 'unverified' ? 'unverified' : '';
+}
+
+function renderAssistantContent(content) {
+  if (typeof content === 'string') return `<p>${esc(content)}</p>`;
+  if (content?.type !== 'evidence') return `<p>${esc(content?.text ?? '')}</p>`;
+  const findings = content.findings?.length
+    ? `<ul class="assistant-findings">${content.findings.map(item => `<li><span class="epistemic-marker ${assistantMarker(item.status)}" aria-hidden="true"></span><span>${esc(item.text)}</span></li>`).join('')}</ul>`
+    : '<p>当前数据包没有形成可复核判断；未用缺失值补结论。</p>';
+  const pending = content.pending?.length ? `<p class="assistant-pending"><span>待验证</span> ${content.pending.map(esc).join('；')}</p>` : '';
+  const actions = content.dimensions?.length ? `<div class="assistant-message-actions">${content.dimensions.map(item => `<button type="button" data-assistant-dimension="${esc(item.id)}">查看${esc(item.label)}</button>`).join('')}</div>` : '';
+  return `<strong>${esc(content.companyName)} · ${esc(content.scope)}</strong>${findings}${pending}${actions}`;
+}
+
+function renderAssistantThread() {
+  const thread = $('#assistant-thread');
+  thread.innerHTML = state.assistantMessages.map(message => `<article class="assistant-message ${message.role === 'user' ? 'user' : ''} ${message.status ? `is-${esc(message.status)}` : ''}" data-message-id="${message.id}">${renderAssistantContent(message.content)}</article>`).join('');
+  thread.scrollTop = thread.scrollHeight;
+}
+
+function appendAssistantMessage(role, content, status = '') {
+  state.assistantMessages.push({ id: `message-${Date.now()}-${state.assistantMessages.length}`, role, content, status });
+  renderAssistantThread();
 }
 
 function renderModuleStatus() {
@@ -469,11 +497,11 @@ function undoAIResearch() {
 }
 
 async function runAIResearch(question) {
-  if (!state.aiConnection) return;
+  if (!state.aiConnection) return { ok: false, skipped: true };
   const button = $('#run-diagnosis');
   const console = $('.ai-research-console');
   button.disabled = true;
-  button.textContent = '正在生成研究补充…';
+  button.textContent = '分析中…';
   console.setAttribute('aria-busy', 'true');
   $('#ai-connection-state').textContent = `生成中 · ${state.aiConnection.model}`;
   try {
@@ -491,15 +519,14 @@ async function runAIResearch(question) {
     if (!validation.ok) throw new AIAdapterError(`模型返回结构不完整：${validation.errors.join('；')}`, 'invalid_research_structure');
     state.aiPreview = validation.patch;
     renderAIPreview();
-    $('#ai-preview').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    showToast('AI 研究草稿已生成，请核对后应用');
+    return { ok: true, patch: validation.patch };
   } catch (error) {
     state.aiPreview = null;
     renderAIPreview();
-    showToast(error instanceof AIAdapterError ? `${error.message}；请检查模型、额度或接口` : '模型结果未通过结构校验；已保留默认研究');
+    return { ok: false, error: error instanceof AIAdapterError ? `${error.message}；请检查模型、额度或接口` : '模型结果未通过结构校验；已保留默认研究' };
   } finally {
     button.disabled = false;
-    button.textContent = '生成 AI 研究补充';
+    button.textContent = '发送';
     console.setAttribute('aria-busy', 'false');
     $('#ai-connection-state').textContent = `已连接 · ${state.aiConnection.model}`;
   }
@@ -791,12 +818,14 @@ async function loadCompany(company, { initial = false } = {}) {
     const bundle = await client.research(company);
     state.bundle = bundle;
     state.view = normalizeResearchView(bundle, company, isByd(company.thscode) ? BYD_SNAPSHOT : null);
+    if (state.view.profile?.status === 'ok' && state.view.profile.name) state.view.company.name = state.view.profile.name;
     const companyType = inferCompanyType(state.view.profile, state.view.company.name);
-    state.company = { ...company, companyType };
+    state.company = { name: state.view.company.name, thscode: state.view.company.thscode, companyType };
     state.view.company.companyType = companyType;
     resetAIResearchState();
     refreshResearchProtocol();
     $('#stock-search').value = `${state.view.company.name} · ${state.view.company.thscode}`;
+    return true;
   } catch (error) {
     if (initial && isByd(company.thscode)) {
       state.company = { ...company, companyType: 'manufacturing' };
@@ -805,9 +834,10 @@ async function loadCompany(company, { initial = false } = {}) {
       resetAIResearchState();
       refreshResearchProtocol();
       showToast('实时数据暂不可用，已切换为公开披露快照');
+      return true;
     } else {
       showToast(error instanceof ResearchClientError ? error.message : '公司数据加载失败');
-      return;
+      return false;
     }
   } finally {
     setBusy(false);
@@ -847,19 +877,70 @@ function setMode(mode, options = {}) {
 
 const sectionByDimension = { operating_quality: 'operating', financial_trend: 'finance', valuation: 'valuation', market_characteristics: 'market', industry_position: 'valuation', material_events: 'events', risk: 'events' };
 
+const knownCompanies = [
+  { name: '比亚迪', thscode: '002594.SZ' },
+  { name: '美的集团', thscode: '000333.SZ' },
+  { name: '格力电器', thscode: '000651.SZ' },
+  { name: '贵州茅台', thscode: '600519.SH' },
+  { name: '宁德时代', thscode: '300750.SZ' },
+];
+
+async function resolveCompanyCandidate(query) {
+  const normalizedCode = normalizeAshareCode(query);
+  if (normalizedCode) return knownCompanies.find(item => item.thscode === normalizedCode) ?? { name: normalizedCode, thscode: normalizedCode };
+  const clean = String(query ?? '').trim();
+  const known = knownCompanies.find(item => item.name === clean || item.name.includes(clean) || clean.includes(item.name));
+  if (known) return known;
+  const items = await client.search(clean);
+  return items.find(item => item.name === clean) ?? items[0] ?? null;
+}
+
 $('#research-task').addEventListener('submit', async event => {
   event.preventDefault();
   const question = $('#research-question').value.trim();
-  const workbench = buildWorkbench(state.bundle, state.company, question);
-  const selected = workbench.report.selectedDimensions.slice(0, 3);
-  state.selectedDimensions = selected.map(item => item.dimension);
-  renderDimensionRail(state.selectedDimensions);
-  renderClaimLayer();
-  $('#priority-result').innerHTML = `<strong>${esc(question || '公司研究')}</strong><ol>${selected.map(item => `<li><a href="#${sectionByDimension[item.dimension]}">${esc(item.label)}</a></li>`).join('')}</ol>`;
-  $('#priority-result').hidden = false;
-  document.getElementById(sectionByDimension[selected[0]?.dimension] || 'operating')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  if (!state.aiConnection) showToast('已定位研究维度；连接模型后可生成证据补充');
-  await runAIResearch(question);
+  if (!question) return;
+  appendAssistantMessage('user', question);
+  $('#research-question').value = '';
+  const intent = classifyAssistantInput(question);
+  const button = $('#run-diagnosis');
+  button.disabled = true;
+  button.textContent = '处理中…';
+  try {
+    if (intent.type === 'greeting') {
+      appendAssistantMessage('assistant', `你好，我正在研究${state.view.company.name}。输入 A 股名称或代码可切换；也可直接问利润、现金、估值或行情。`);
+      return;
+    }
+    if (intent.type === 'company_switch') {
+      const company = await resolveCompanyCandidate(intent.query);
+      if (!company) {
+        appendAssistantMessage('assistant', `未找到“${intent.query}”对应的 A 股公司；可改用 6 位代码。`, 'error');
+        return;
+      }
+      const loaded = await loadCompany(company);
+      if (!loaded) {
+        appendAssistantMessage('assistant', `${company.name}的数据接口暂不可用，本次未切换，避免将当前公司的数据误作目标公司。`, 'error');
+        return;
+      }
+      appendAssistantMessage('assistant', `已切换至${state.view.company.name}（${state.view.company.thscode}）。行情、财务、估值与证据层已按当前可用数据刷新；缺失模块保留为空态。`);
+      return;
+    }
+    const workbench = buildWorkbench(state.bundle, state.company, intent.question);
+    const selected = workbench.report.selectedDimensions.slice(0, 3);
+    state.selectedDimensions = selected.map(item => item.dimension);
+    renderDimensionRail(state.selectedDimensions);
+    renderClaimLayer();
+    $('#priority-result').innerHTML = `<strong>${esc(intent.question)}</strong><ol>${selected.map(item => `<li><a href="#${sectionByDimension[item.dimension]}">${esc(item.label)}</a></li>`).join('')}</ol>`;
+    $('#priority-result').hidden = false;
+    appendAssistantMessage('assistant', buildEvidenceReply({ companyName: state.view.company.name, claims: state.claims, selectedDimensions: state.selectedDimensions }));
+    const modelResult = await runAIResearch(intent.question);
+    if (modelResult.ok) appendAssistantMessage('assistant', `模型已在现有证据范围内选择 ${modelResult.patch.selectedDimensions.length} 个维度、${modelResult.patch.claims.length} 条判断。研究草稿已生成，可核对后应用。`);
+    else if (!modelResult.skipped) appendAssistantMessage('assistant', modelResult.error, 'error');
+  } catch (error) {
+    appendAssistantMessage('assistant', error instanceof ResearchClientError ? error.message : '本次请求未完成；现有研究数据保持不变。', 'error');
+  } finally {
+    button.disabled = false;
+    button.textContent = '发送';
+  }
 });
 
 $('#ai-settings').addEventListener('click', () => {
@@ -870,20 +951,34 @@ $('#ai-settings').addEventListener('click', () => {
   if (open) $('#ai-endpoint').focus();
 });
 
-$('#ai-connect').addEventListener('click', () => {
+$('#ai-connect').addEventListener('click', async () => {
   const endpoint = $('#ai-endpoint').value.trim();
   const model = $('#ai-model').value.trim();
   const apiKey = $('#ai-key').value.trim();
   if (!endpoint || !model || !apiKey) return showToast('请填写接口、模型和临时 API Key');
-  state.aiConnection = { endpoint, model, apiKey };
-  $('#ai-key').value = '';
-  $('.ai-research-console').dataset.connected = 'true';
-  $('#ai-connection-state').textContent = `已连接 · ${model}`;
-  $('#run-diagnosis').textContent = '生成 AI 研究补充';
-  $('#ai-settings').innerHTML = '<span class="button-spark" aria-hidden="true">◇</span>更换模型';
-  $('#ai-settings-panel').hidden = true;
-  $('#ai-settings').setAttribute('aria-expanded', 'false');
-  showToast('模型已就绪；密钥仅在当前页面内存中使用');
+  const connectButton = $('#ai-connect');
+  connectButton.disabled = true;
+  connectButton.textContent = '正在验证…';
+  $('#ai-connection-state').textContent = `验证中 · ${model}`;
+  try {
+    await analyzeResearch({ endpoint, model, apiKey, messages: [{ role: 'system', content: 'Reply with OK only.' }, { role: 'user', content: 'Connection test.' }], tools: [], outputSchema: null });
+    state.aiConnection = { endpoint, model, apiKey };
+    $('.ai-research-console').dataset.connected = 'true';
+    $('#ai-connection-state').textContent = `已验证 · ${model}`;
+    $('#ai-settings').innerHTML = '<span class="button-spark" aria-hidden="true">◇</span>更换模型';
+    $('#ai-settings-panel').hidden = true;
+    $('#ai-settings').setAttribute('aria-expanded', 'false');
+    appendAssistantMessage('assistant', `已验证 ${model}。后续研究问题会在当前公司数据与出处范围内调用模型。`);
+  } catch (error) {
+    state.aiConnection = null;
+    delete $('.ai-research-console').dataset.connected;
+    $('#ai-connection-state').textContent = '连接失败';
+    appendAssistantMessage('assistant', error instanceof AIAdapterError ? `${error.message}；请核对模型名称、额度与接口。` : '模型连接失败。', 'error');
+  } finally {
+    $('#ai-key').value = '';
+    connectButton.disabled = false;
+    connectButton.textContent = '连接当前模型';
+  }
 });
 
 $('#ai-apply').addEventListener('click', applyAIPreview);
@@ -928,6 +1023,7 @@ document.addEventListener('click', event => {
   const operatingRangeTrigger = event.target.closest('[data-operating-range]');
   const marketRangeTrigger = event.target.closest('[data-market-range]');
   const dimensionTrigger = event.target.closest('[data-dimension]');
+  const assistantDimensionTrigger = event.target.closest('[data-assistant-dimension]');
   const evidenceTrigger = event.target.closest('[data-evidence]');
   const fieldTrigger = event.target.closest('[data-field-refs]');
   const drilldownTrigger = event.target.closest('[data-drilldown-index]');
@@ -949,6 +1045,14 @@ document.addEventListener('click', event => {
     state.selectedDimensions = [dimensionTrigger.dataset.dimension, ...state.selectedDimensions.filter(id => id !== dimensionTrigger.dataset.dimension)];
     renderDimensionRail();
     renderClaimLayer();
+  }
+  if (assistantDimensionTrigger) {
+    const dimension = assistantDimensionTrigger.dataset.assistantDimension;
+    state.selectedDimensions = [dimension, ...state.selectedDimensions.filter(id => id !== dimension)];
+    renderDimensionRail();
+    renderClaimLayer();
+    document.getElementById(sectionByDimension[dimension] || 'operating')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    return;
   }
   if (drilldownTrigger) return openClaimDrilldown(drilldownTrigger.dataset.claim, drilldownTrigger.dataset.drilldownIndex, drilldownTrigger);
   if (fieldTrigger) return openFieldEvidence(fieldTrigger.dataset.fieldRefs, fieldTrigger);
@@ -1011,4 +1115,5 @@ $$('.section-anchor').forEach(section => observer.observe(section));
 
 renderAll();
 setMode('simple', { silent: true });
+appendAssistantMessage('assistant', '正在研究比亚迪（002594.SZ）。可直接提问，或输入“换成美的集团”切换 A 股。');
 loadCompany({ name: '比亚迪', thscode: '002594.SZ' }, { initial: true });

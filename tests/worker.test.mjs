@@ -30,6 +30,13 @@ test('worker serves chart exploration helpers as a same-origin module', async ()
   assert.match(await response.text(), /selectChartRange/);
 });
 
+test('worker serves assistant intent helpers as a same-origin module', async () => {
+  const response = await worker.fetch(new Request('https://example.test/assistant-intent.js'), {}, {});
+  assert.equal(response.status, 200);
+  assert.match(response.headers.get('content-type'), /text\/javascript/);
+  assert.match(await response.text(), /classifyAssistantInput/);
+});
+
 test('worker does not cache unhashed client scripts across UI revisions', async () => {
   const response = await worker.fetch(new Request('https://example.test/app.js'), {}, {});
   assert.equal(response.headers.get('cache-control'), 'no-store');
@@ -43,8 +50,8 @@ test('distribution includes the optional iFinD provider boundary used by researc
 
 test('source distribution and Worker use one versioned FinScope entrypoint',()=>{
   assert.equal(distHtml,sourceHtml);
-  assert.match(sourceHtml,/app\.js\?v=ai-assistant-2/);
-  assert.match(generatedUi,/ai-assistant-2/);
+  assert.match(sourceHtml,/app\.js\?v=interaction-repair-1/);
+  assert.match(generatedUi,/interaction-repair-1/);
   assert.match(generatedUi,/buildWorkbench/);
   assert.doesNotMatch(generatedUi,/healthModelScript|buildHealthReport/);
 });

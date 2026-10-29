@@ -76,12 +76,21 @@ test('AI research assistant has a visible identity, honest state and explicit ac
   for (const id of ['research-question', 'run-diagnosis', 'ai-settings', 'ai-connection-state']) {
     assert.match(html, new RegExp(`id="${id}"`), id);
   }
-  for (const copy of ['AI 研究助手', '未连接模型', '连接 Gemini / 兼容模型', '定位研究重点', '生成证据关系与图表']) {
+  for (const copy of ['AI 研究助手', '未连接模型', '连接模型', '发送', '当前公司 · 可追溯证据']) {
     assert.match(html, new RegExp(copy), copy);
   }
   assert.match(html, /class="ai-assistant-icon"[\s\S]*?<svg/);
   assert.match(html, /aria-hidden="true"/);
   assert.doesNotMatch(html, /AI 驱动|智能投研革命|全能|一键洞察/);
+});
+
+test('AI assistant exposes a live transcript and direct send flow', () => {
+  assert.match(html, /id="assistant-thread"[^>]*role="log"/);
+  assert.match(html, /id="research-question"[^>]*placeholder=/);
+  assert.match(html, /id="run-diagnosis"[^>]*>发送</);
+  assert.match(app, /classifyAssistantInput/);
+  assert.match(app, /appendAssistantMessage/);
+  assert.match(app, /company_switch/);
 });
 
 test('palette assigns distinct semantic variables without gradients as decoration', () => {

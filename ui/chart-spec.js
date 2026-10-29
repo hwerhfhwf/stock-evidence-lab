@@ -164,8 +164,9 @@ export function renderMarketTracksChart(tracks, sourceRefs = []) {
   const right = 16;
   const inner = width - left - right;
   const x = index => left + index / Math.max(1, tracks.price.length - 1) * inner;
-  const paths = (series, top, height) => {
+  const scale = (series, top, height) => {
     const values = series.filter(point => point.value !== null).map(point => point.value);
+    if (!values.length) return { path: '', min: null, max: null };
     const min = Math.min(...values);
     const max = Math.max(...values);
     const y = value => top + (max - value) / Math.max(.0001, max - min) * height;
@@ -176,13 +177,21 @@ export function renderMarketTracksChart(tracks, sourceRefs = []) {
       path += `${drawing ? 'L' : 'M'}${x(index).toFixed(1)} ${y(point.value).toFixed(1)} `;
       drawing = true;
     });
-    return path.trim();
+    return { path: path.trim(), min, max };
   };
+  const priceScale = scale(tracks.price, 14, 72);
+  const volatilityScale = scale(tracks.volatility, 112, 67);
+  const drawdownScale = scale(tracks.drawdown, 214, 58);
+  const chartDate = value => {
+    const date = new Date(Number(value));
+    return Number.isNaN(date.getTime()) ? String(value ?? '—') : date.toISOString().slice(0, 10);
+  };
+  const rangeLabel = (model, suffix = '') => model.max === null ? '—' : `${model.min.toFixed(2)} — ${model.max.toFixed(2)}${suffix}`;
   return `<svg class="chart-svg market-tracks" viewBox="0 0 860 300" role="img" tabindex="0" data-source-ref="${refs(sourceRefs)}" aria-label="同一行情区间的价格、年化波动率和回撤">
-    <text x="8" y="42" class="axis">价格</text><text x="8" y="145" class="axis">波动率</text><text x="8" y="244" class="axis">回撤</text>
+    <text x="8" y="42" class="axis">价格</text><text x="844" y="25" text-anchor="end" class="market-axis-value">${rangeLabel(priceScale)}</text><text x="8" y="145" class="axis">波动率</text><text x="844" y="126" text-anchor="end" class="market-axis-value">${rangeLabel(volatilityScale, '%')}</text><text x="8" y="244" class="axis">回撤</text><text x="844" y="228" text-anchor="end" class="market-axis-value">${rangeLabel(drawdownScale, '%')}</text>
     <line x1="${left}" x2="${width-right}" y1="92" y2="92" class="grid"/><line x1="${left}" x2="${width-right}" y1="194" y2="194" class="grid"/><line x1="${left}" x2="${width-right}" y1="286" y2="286" class="grid"/>
-    <path d="${paths(tracks.price, 14, 72)}" class="price-line"/><path d="${paths(tracks.volatility, 112, 67)}" class="volatility-line"/><path d="${paths(tracks.drawdown, 214, 58)}" class="drawdown-line"/>
-    <text x="${left}" y="298" class="label">${esc(tracks.range.start)}</text><text x="${width-right}" y="298" text-anchor="end" class="label">${esc(tracks.range.end)}</text>
+    <path d="${priceScale.path}" class="price-line"/><path d="${volatilityScale.path}" class="volatility-line"/><path d="${drawdownScale.path}" class="drawdown-line"/>
+    <text x="${left}" y="298" class="label">${esc(chartDate(tracks.range.start))}</text><text x="${width-right}" y="298" text-anchor="end" class="label">${esc(chartDate(tracks.range.end))}</text>
   </svg>`;
 }
 
