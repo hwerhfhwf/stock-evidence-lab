@@ -6,6 +6,7 @@ import {
   buildMarketTracks,
   buildProfitConversion,
   renderBalanceFlowChart,
+  renderCashCoverageChart,
   renderProfitConversionChart,
 } from '../ui/chart-spec.js';
 
@@ -30,6 +31,16 @@ test('balance flow preserves one accounting identity and proportional geometry',
   assert.match(renderBalanceFlowChart(model, ['AR25']), /资产 = 负债 \+ 权益/);
 });
 
+test('balance flow keeps values in an external legend instead of narrow asset segments', () => {
+  const model = buildBalanceFlow({ assets: 9412.8, liabilities: 6679.1, currentAssets: 4200, cash: 587.4 });
+  const html = renderBalanceFlowChart(model, ['BS26Q2']);
+  assert.match(html, /class="balance-legend asset-legend"/);
+  assert.match(html, /现金[^<]*587\.4 亿[^<]*6\.2%/);
+  assert.match(html, /其他流动资产[^<]*3,612\.6 亿[^<]*38\.4%/);
+  assert.match(html, /非流动资产[^<]*5,212\.8 亿[^<]*55\.4%/);
+  assert.doesNotMatch(html, /<text[^>]*y="51"[^>]*>现金/);
+});
+
 test('cash coverage separates operating cash capital expenditure and uncovered amount', () => {
   const model = buildCashCoverage({ cfo: 591.36, capex: 1568.08 });
   assert.equal(model.covered, 591.36);
@@ -40,6 +51,23 @@ test('cash coverage separates operating cash capital expenditure and uncovered a
   assert.equal(negativeCash.covered, 0);
   assert.equal(negativeCash.uncovered, 100);
   assert.equal(negativeCash.coveragePct, -50);
+});
+
+test('cash coverage binds each value to its colored segment and exposes surplus separately', () => {
+  const shortfall = buildCashCoverage({ cfo: 373.4, capex: 447, periodLabel: '2026Q2' });
+  assert.equal(shortfall.state, 'shortfall');
+  assert.equal(shortfall.coveredPct, 83.53);
+  assert.equal(shortfall.gapPct, 16.47);
+  const shortfallHtml = renderCashCoverageChart(shortfall, ['CF26Q2']);
+  assert.match(shortfallHtml, /class="coverage-segment covered"/);
+  assert.match(shortfallHtml, /经营现金覆盖[^<]*373\.4 亿[^<]*83\.5%/);
+  assert.match(shortfallHtml, /class="coverage-segment shortfall"/);
+  assert.match(shortfallHtml, /资金缺口[^<]*73\.6 亿[^<]*16\.5%/);
+
+  const surplus = buildCashCoverage({ cfo: 540, capex: 447 });
+  assert.equal(surplus.state, 'surplus');
+  assert.equal(surplus.surplus, 93);
+  assert.match(renderCashCoverageChart(surplus), /覆盖后结余[^<]*93\.0 亿/);
 });
 
 test('three market tracks preserve missing observations and use the same interval', () => {

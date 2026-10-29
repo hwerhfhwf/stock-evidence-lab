@@ -233,6 +233,7 @@ h2, h3 { letter-spacing: -.2px; }
 .chart-svg { display: block; width: 100%; height: auto; }
 .chart-svg .grid { stroke: #234257; stroke-width: 1; stroke-dasharray: 2 4; }
 .chart-svg .axis, .chart-svg .label, .chart-svg .value { fill: #a9bfcc; font-size: 12px; }
+.chart-svg .axis-title { fill: #dceaf1; font-size: 13px; font-weight: 700; }
 .chart-svg .revenue { fill: var(--revenue); }
 .chart-svg .profit-line { fill: none; stroke: var(--profit); stroke-width: 2; }
 .chart-svg .price-area { fill: rgba(56, 189, 248, .13); }
@@ -266,9 +267,13 @@ h2, h3 { letter-spacing: -.2px; }
 .balance-track { height: 8px; background: #152d3d; }
 .balance-track i { display: block; height: 100%; background: var(--assets); }
 .balance-row strong { text-align: right; font: 600 13px ui-monospace, monospace; }
-.balance-flow .flow-label, .cash-coverage .flow-label { fill: #eef6fa; font-size: 12px; font-weight: 600; }
 .balance-flow .identity { fill: #a9bfcc; font-size: 12px; }
-.cash-coverage .negative-label { fill: var(--negative); font-size: 12px; font-weight: 600; }
+.balance-stack rect { shape-rendering: geometricPrecision; }
+.balance-legend text { fill: #c8d8e1; font-size: 12px; font-weight: 600; }
+.cash-coverage .coverage-ratio { fill: #f0f6f9; font-size: 13px; font-weight: 700; }
+.cash-coverage .coverage-segment text { fill: #d9e7ee; font-size: 12px; font-weight: 650; }
+.cash-coverage .shortfall text { fill: #ffc65b; }
+.cash-coverage .surplus text { fill: #77e5d7; }
 .data-table { margin-top: 20px; overflow-x: auto; }
 .data-table table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .data-table th, .data-table td { padding: 8px; border-bottom: 1px solid var(--border-soft); text-align: right; }
