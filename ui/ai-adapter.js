@@ -21,9 +21,7 @@ export function createAIResearchContext({ question, sourcePackage, defaultClaims
     value: field.value,
     unit: field.unit,
     period: field.period,
-    scope: field.scope,
     status: field.status,
-    sourceRefs: field.sourceRefs,
   }));
   const compactSources = (sourcePackage?.sources ?? []).map(source => ({
     id: source.id,
@@ -32,8 +30,18 @@ export function createAIResearchContext({ question, sourcePackage, defaultClaims
     period: source.period,
     sourceType: source.sourceType,
   }));
+  const availableClaims = (defaultClaims ?? []).slice(0, 12).map(claim => ({
+    id: claim.id,
+    dimension: claim.dimension,
+    question: claim.question,
+    statement: claim.statement,
+    epistemicStatus: claim.epistemicStatus,
+    directions: Object.entries(claim.evidenceGroups ?? {})
+      .filter(([, items]) => Array.isArray(items) && items.length > 0)
+      .map(([direction]) => direction),
+  }));
   return {
-    task: '选择与研究问题最相关的维度，并把现有可核验判断组织成研究补充草稿。',
+    task: '选择研究维度、已有判断和可选图表；只返回 ID 与图表规格。',
     question,
     sourcePackage: {
       version: sourcePackage?.version,
@@ -44,7 +52,7 @@ export function createAIResearchContext({ question, sourcePackage, defaultClaims
       sources: compactSources,
       peers: sourcePackage?.peers ?? [],
     },
-    defaultClaims,
+    availableClaims,
   };
 }
 
@@ -128,7 +136,7 @@ export function parseResearchResponse(content) {
   }
 }
 
-export function validateResearchPatch(candidate, sourcePackage) {
+export function validateResearchPatch(candidate, sourcePackage, defaultClaims = []) {
   const errors = [];
   const fieldIds = new Set((sourcePackage?.fields ?? []).map(field => field.id));
   if (!candidate || typeof candidate !== 'object') return { ok: false, errors: ['研究补丁为空'] };
@@ -139,7 +147,19 @@ export function validateResearchPatch(candidate, sourcePackage) {
       return false;
     }).slice(0, 7)
     : [];
-  const claims = Array.isArray(candidate.claims) ? candidate.claims.slice(0, 8) : [];
+  const trustedClaims = new Map(defaultClaims.map(claim => [claim.id, claim]));
+  const claimIds = Array.isArray(candidate.claimIds)
+    ? [...new Set(candidate.claimIds)].slice(0, 3)
+    : [];
+  const claims = [];
+  for (const claimId of claimIds) {
+    const claim = trustedClaims.get(claimId);
+    if (!claim) {
+      errors.push(`未知研究判断：${claimId}`);
+      continue;
+    }
+    claims.push(claim);
+  }
   for (const claim of claims) {
     const result = validateResearchClaim(claim);
     if (!result.ok) errors.push(...result.errors.map(error => `${claim?.id ?? 'claim'}：${error}`));

@@ -508,13 +508,13 @@ async function runAIResearch(question) {
     const result = await analyzeResearch({
       ...state.aiConnection,
       messages: [
-        { role: 'system', content: '你是 FinScope 的公司研究编排器。只返回一个原始 JSON 对象，不要 Markdown。只使用 sourcePackage 已有字段；事实、推断、暂无法验证必须分开；positive、negative、conflicting、unknown 是同一判断下的证据方向，不是好坏标签。不得预测涨跌、承诺收益或给出买卖建议。返回键必须是 selectedDimensions、claims、chartSpecs。claims 从 defaultClaims 中选择 1 至 3 个完整对象，可精简 question 和 statement，但不得修改任何 evidenceRefs、sourceRefs、drilldowns 或 evidenceGroups 结构。chartSpecs 不确定时返回空数组；如生成，只可引用 sourcePackage.fields 的字段 id，series 不得含 data、values 或任意数值。' },
+        { role: 'system', content: '你是 FinScope 公司研究编排器。只返回原始 JSON，不要 Markdown。只使用输入中的已有事实，不预测涨跌、不承诺收益、不给买卖建议。返回键仅为 selectedDimensions、claimIds、chartSpecs。selectedDimensions 从 operating_quality、financial_trend、valuation、market_characteristics、industry_position、material_events、risk 中选 1 至 4 个；claimIds 从 availableClaims 中选 1 至 3 个 ID，不得改写判断；chartSpecs 不确定时返回空数组，如生成只能引用 sourcePackage.fields 的 id，series 只含 fieldId 与可选 label，不得携带 data、values 或数值。' },
         { role: 'user', content: JSON.stringify(createAIResearchContext({ question, sourcePackage: state.sourcePackage, defaultClaims: state.claims })) },
       ],
       tools: [],
       outputSchema: null,
     });
-    const validation = validateResearchPatch(parseResearchResponse(result.content), state.sourcePackage);
+    const validation = validateResearchPatch(parseResearchResponse(result.content), state.sourcePackage, state.claims);
     if (!validation.ok) throw new Error(validation.errors.join('；'));
     state.aiPreview = validation.patch;
     renderAIPreview();

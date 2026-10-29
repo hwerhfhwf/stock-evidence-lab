@@ -49,7 +49,17 @@ test('AI response parser accepts raw JSON and a single fenced JSON object', () =
   );
 });
 
-test('AI context keeps auditable fields and claims but removes bulky market series', () => {
+test('AI context keeps auditable field facts and claim choices without sending full evidence objects', () => {
+  const bulkyClaim = {
+    id: 'claim-1',
+    dimension: 'operating_quality',
+    question: '利润转化如何变化？',
+    statement: '可核验判断',
+    epistemicStatus: 'inference',
+    evidenceGroups: { positive: [], negative: [{ evidenceRefs: ['metric:profit-growth'] }], conflicting: [], unknown: [] },
+    sourceRefs: ['metric:profit-growth'],
+    drilldowns: [{ type: 'financial_period', evidenceRefs: ['metric:profit-growth'] }],
+  };
   const context = createAIResearchContext({
     question: '利润转化如何变化？',
     sourcePackage: {
@@ -59,11 +69,14 @@ test('AI context keeps auditable fields and claims but removes bulky market seri
       marketSeries: Array.from({ length: 200 }, (_, index) => ({ date: index, close: index + 1 })),
       providers: { market: 'provider' },
     },
-    defaultClaims: [{ id: 'claim-1', statement: '可核验判断' }],
+    defaultClaims: [bulkyClaim],
   });
   assert.equal(context.question, '利润转化如何变化？');
   assert.equal(context.sourcePackage.fields.length, 2);
-  assert.equal(context.defaultClaims[0].id, 'claim-1');
+  assert.equal(context.availableClaims[0].id, 'claim-1');
+  assert.deepEqual(context.availableClaims[0].directions, ['negative']);
+  assert.equal('evidenceGroups' in context.availableClaims[0], false);
+  assert.equal('drilldowns' in context.availableClaims[0], false);
   assert.equal('marketSeries' in context.sourcePackage, false);
   assert.equal('providers' in context.sourcePackage, false);
   assert.ok(JSON.stringify(context).length < 5000);
@@ -95,7 +108,7 @@ test('chart spec rejects unknown charts fields arbitrary data and advice copy', 
   for (const spec of invalid) assert.equal(validateChartSpec(spec, sourcePackage).ok, false);
 });
 
-test('AI research patch can extend dimensions claims and fixed chart specs without changing sources', () => {
+test('AI research patch resolves model-selected claim ids to trusted evidence objects', () => {
   const claim = {
     id: 'ai-operating', dimension: 'operating_quality', question: '利润如何转化？',
     statement: '归母净利润增速低于营业收入增速。', epistemicStatus: 'inference',
@@ -108,24 +121,21 @@ test('AI research patch can extend dimensions claims and fixed chart specs witho
     drilldowns: [{ type: 'financial_period', label: '查看期次', period: '2026H1', evidenceRefs: ['metric:revenue-growth'] }],
   };
   const result = validateResearchPatch({
-    selectedDimensions: ['operating_quality', 'financial_trend'], claims: [claim],
+    selectedDimensions: ['operating_quality', 'financial_trend'], claimIds: ['ai-operating'],
     chartSpecs: [{ id: 'growth', type: 'grouped_bar_line', title: '收入与利润增速', series: [{ fieldId: 'metric:revenue-growth' }, { fieldId: 'metric:profit-growth' }], sourceRefs: ['H126'], unit: '%' }],
-  }, sourcePackage);
+  }, sourcePackage, [claim]);
   assert.equal(result.ok, true);
   assert.equal(result.patch.claims[0].id, 'ai-operating');
+  assert.equal(result.patch.claims[0], claim);
   assert.equal(result.patch.chartSpecs[0].id, 'growth');
 });
 
-test('AI research patch rejects invented evidence and keeps the deterministic state usable', () => {
+test('AI research patch rejects unknown claim ids and keeps the deterministic state usable', () => {
   const result = validateResearchPatch({
     selectedDimensions: ['operating_quality'],
-    claims: [{
-      id: 'invented', dimension: 'operating_quality', question: '问题', statement: '结论', epistemicStatus: 'fact',
-      evidenceGroups: { positive: [{ id: 'x', label: 'x', evidenceRefs: ['invented:value'] }], negative: [], conflicting: [], unknown: [] },
-      sourceRefs: ['invented:value'], drilldowns: [],
-    }], chartSpecs: [],
-  }, sourcePackage);
+    claimIds: ['invented'], chartSpecs: [],
+  }, sourcePackage, []);
   assert.equal(result.ok, false);
-  assert.match(result.errors.join('；'), /invented:value/);
+  assert.match(result.errors.join('；'), /invented/);
 });
 

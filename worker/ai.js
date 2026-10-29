@@ -68,6 +68,7 @@ export async function analyzeWithAI(fetchFn, payload = {}, options = {}) {
     model,
     messages: normalizeMessages(payload.messages ?? []),
     temperature: 0.1,
+    max_tokens: 900,
   };
   if (Array.isArray(payload.tools) && payload.tools.length) body.tools = payload.tools.slice(0, 12);
   if (payload.outputSchema && typeof payload.outputSchema === 'object') {
